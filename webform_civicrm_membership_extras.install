@@ -1,0 +1,5 @@
+<?php
+
+function webform_civicrm_membership_extras_install() {
+  db_query("UPDATE {system} SET weight = 1000 WHERE name = 'webform_civicrm_membership_extras'");
+}
