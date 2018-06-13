@@ -10,6 +10,10 @@
  * @param $submission
  */
 function webform_civicrm_membership_extras_webform_submission_insert($node, $submission) {
+  if (!_membershipextras_isCivicrmWebform($node)) {
+    return;
+  }
+
   $contributionRecurId = _membershipextras_getPaymentPlanRecurContribution($node);
 
   if (!empty($contributionRecurId)) {
@@ -17,6 +21,22 @@ function webform_civicrm_membership_extras_webform_submission_insert($node, $sub
     $installmentsHandler = new CRM_MembershipExtras_Service_MembershipInstallmentsHandler($contributionRecurId);
     $installmentsHandler->createRemainingInstalmentContributionsUpfront();
   }
+}
+
+/**
+ * Determines if "CiviCRM  Processing" is enabled on
+ * the Webform.
+ *
+ * @param $node
+ *
+ * @return bool
+ */
+function _membershipextras_isCivicrmWebform($node) {
+  if (property_exists($node, 'webform_civicrm')) {
+    return TRUE;
+  }
+
+  return FALSE;
 }
 
 /**
