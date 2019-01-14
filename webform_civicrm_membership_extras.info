@@ -4,3 +4,7 @@ version = 1.0
 dependencies[] = webform_civicrm
 package = MembershipExtras
 core = 7.x
+
+; Custom PHP classes
+files[] = src/Helpers/Extension/CiviDiscount.php
+files[] = src/Helpers/WebformDiscountDetails.php
