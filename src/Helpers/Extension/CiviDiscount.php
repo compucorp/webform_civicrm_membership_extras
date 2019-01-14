@@ -22,4 +22,22 @@ class CiviDiscount {
 
     return !empty($isEnabled) ? TRUE : FALSE;
   }
+
+  /**
+   * Gets the details for the discount code using CiviDiscount API
+   *
+   * @param string $discountCode
+   *
+   * @return array
+   */
+  public function getDiscountCodeDetails($discountCode) {
+    $result = civicrm_api3('DiscountCode', 'get', [
+      'code' => $discountCode,
+      'sequential' => 1
+    ]);
+
+    if ($result['count'] == 1) {
+      return $result['values'][0];
+    }
+  }
 }
