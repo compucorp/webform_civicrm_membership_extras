@@ -23,6 +23,115 @@ function webform_civicrm_membership_extras_webform_submission_insert($node, $sub
   }
 }
 
+
+/**
+ * Implements hook_form_alter().
+ */
+function webform_civicrm_membership_extras_form_alter(&$form, &$form_state, $form_id) {$me = '';
+  $civiDiscountExtensionHelper = new CiviDiscount();
+  $webformDiscountSettings = new WebformDiscountSettings();
+  if ($form_id == 'wf_crm_configure_form') {
+    if ($civiDiscountExtensionHelper->isEnabled()) {
+      $nid = $form_state['storage']['nid'];
+      $discountStatus = $webformDiscountSettings->getDiscountStatus($nid);
+
+      $form['contribution']['wcm_enable_discount'] = array(
+        '#type' => 'checkbox',
+        '#title' => t('Enable Discounts'),
+        '#default_value' => $discountStatus,
+        '#description' => 'When adding this field to you webform, please make sure it is on the Civi contribution page'
+      );
+      $form['#submit'][] = '_webform_civicrm_discount_settings_submit';
+    }
+  }
+
+  if (isset($form['submitted']['webform_discount_code_field'])) {
+    $isDiscountEnabled = $webformDiscountSettings->getDiscountStatus($form['#node']->nid);
+    //Hide the apply discount field on webform if enable discount is disabled or cividiscount
+    //extension is disabled.
+    if (!$civiDiscountExtensionHelper->isEnabled() || !$isDiscountEnabled) {
+      $form['submitted']['webform_discount_code_field']['#access'] = FALSE;
+    }
+  }
+}
+
+
+/**
+ * Submit callback for the webform discount settings
+ *
+ * @param array $form
+ * @param array $form_state
+ */
+function _webform_civicrm_discount_settings_submit(&$form, &$form_state) {
+  $nid = $form_state['values']['nid'];
+  $enableDiscountStatus = $form_state['values']['wcm_enable_discount'];
+  $webformDiscountSettings = new WebformDiscountSettings();
+  $webformDiscountSettings->save($nid, $enableDiscountStatus);
+
+  $node = node_load($nid);
+  if (!_webform_has_discount_component_attached($node)) {
+    _webform_discount_civicrm_create_discount_component($node);
+  }
+}
+
+
+/**
+ * Checks whether the webform has the discount field
+ * component already attached to it.
+ * @param object $node
+ *   Webform Node object.
+ *
+ * @return bool
+ */
+function _webform_has_discount_component_attached($node) {
+  foreach ($node->webform['components'] as $key => $value) {
+    if ($value['form_key'] == 'webform_discount_code_field') {
+      return TRUE;
+    }
+  }
+
+  return FALSE;
+}
+
+/**
+ * Create discount webform component for particular node.
+ *
+ * @param object $node
+ *   Webform Node object.
+ *
+ * @return bool
+ *   Status.
+ */
+function _webform_discount_civicrm_create_discount_component(&$node) {
+
+  if (empty($node)) {
+    return FALSE;
+  }
+
+  $weight = end($node->webform['components'])['weight'] + 1;
+
+  // Create Discount code component.
+  $component = array(
+    'nid' => $node->nid,
+    'pid' => 0,
+    'form_key' => 'webform_discount_code_field',
+    'name' => t('Apply Discount Code'),
+    'type' => 'textfield',
+    'value' => '',
+    'weight' => !empty($weight) ? $weight : 1000,
+    'extra' => array(
+      'width' => 10,
+    ),
+  );
+  $node->webform['components'][] = $component;
+  $added_cid = webform_component_insert($component);
+  if ($added_cid) {
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
 /**
  * Determines if "CiviCRM  Processing" is enabled on
  * the Webform.
