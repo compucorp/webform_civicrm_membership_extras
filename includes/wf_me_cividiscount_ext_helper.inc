@@ -5,7 +5,7 @@
  * Extension and its API's
  * certain routes
  */
-class CiviDiscount {
+class wf_me_cividiscount_ext_helper {
 
   /**
    * Checks whether this extension is enabled or not.

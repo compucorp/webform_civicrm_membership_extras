@@ -6,6 +6,6 @@ package = MembershipExtras
 core = 7.x
 
 ; Custom PHP classes
-files[] = src/Helpers/Extension/CiviDiscount.php
-files[] = src/Helpers/WebformDiscountDetails.php
-files[] = src/Helpers/Validator/DiscountCode.php
+files[] = includes/wf_me_cividiscount_ext_helper.inc
+files[] = includes/wf_me_discount_settings.inc
+files[] = includes/wf_me_discount_code_validator.inc

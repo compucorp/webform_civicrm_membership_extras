@@ -1,6 +1,6 @@
 <?php
 
-class DiscountCode {
+class wf_me_discount_code_validator {
 
   /**
    * Validates a discount code created in Cividiscount.
@@ -11,7 +11,7 @@ class DiscountCode {
    * @throws \Exception
    */
   public function validate($discountCode) {
-    $civiDiscountExtensionHelper = new CiviDiscount();
+    $civiDiscountExtensionHelper = new wf_me_cividiscount_ext_helper();
     $discountCodeDetails = $civiDiscountExtensionHelper->getDiscountCodeDetails($discountCode);
 
     if (empty($discountCodeDetails)) {

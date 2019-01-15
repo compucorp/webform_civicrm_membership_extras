@@ -28,17 +28,17 @@ function webform_civicrm_membership_extras_webform_submission_insert($node, $sub
  * Implements hook_form_alter().
  */
 function webform_civicrm_membership_extras_form_alter(&$form, &$form_state, $form_id) {
-  $civiDiscountExtensionHelper = new CiviDiscount();
-  $webformDiscountSettings = new WebformDiscountSettings();
+  $wf_me_cividiscount_helper = new wf_me_cividiscount_ext_helper();
+  $wf_me_discount_settings = new wf_me_discount_settings();
   if ($form_id == 'wf_crm_configure_form') {
-    if ($civiDiscountExtensionHelper->isEnabled()) {
+    if ($wf_me_cividiscount_helper->isEnabled()) {
       $nid = $form_state['storage']['nid'];
-      $discountStatus = $webformDiscountSettings->getDiscountStatus($nid);
+      $discount_status = $wf_me_discount_settings->getDiscountStatus($nid);
 
       $form['contribution']['wcm_enable_discount'] = array(
         '#type' => 'checkbox',
         '#title' => t('Enable Discounts'),
-        '#default_value' => $discountStatus,
+        '#default_value' => $discount_status ,
         '#description' => 'When adding this field to you webform, please make sure it is on the Civi contribution page'
       );
       $form['#submit'][] = '_webform_civicrm_discount_settings_submit';
@@ -46,10 +46,10 @@ function webform_civicrm_membership_extras_form_alter(&$form, &$form_state, $for
   }
 
   if (isset($form['submitted']['webform_discount_code_field'])) {
-    $isDiscountEnabled = $webformDiscountSettings->getDiscountStatus($form['#node']->nid);
+    $is_discount_enabled = $wf_me_discount_settings->getDiscountStatus($form['#node']->nid);
     //Hide the apply discount field on webform if enable discount is disabled or cividiscount
     //extension is disabled.
-    if (!$civiDiscountExtensionHelper->isEnabled() || !$isDiscountEnabled) {
+    if (!$wf_me_cividiscount_helper->isEnabled() || !$is_discount_enabled) {
       $form['submitted']['webform_discount_code_field']['#access'] = FALSE;
     }
     else {
@@ -138,7 +138,9 @@ function _webform_discount_code_field_ajax_callback($form, &$form_state) {
   if ($form_state['discount_error_message']) {
     $markup = '<div class=\'discount-message\' style=\'background-color: #ffd6cb; color: #701a00;\'>' . $form_state['discount_error_message'] . '</div>';
     $form['submitted']['webform_discount_code_message_wrapper']['webform_discount_code_field_markup']['#markup'] = $markup;
-    $ajax_commands[] = ajax_command_replace('#discount-code-message-wrapper', render($form['submitted']['webform_discount_code_message_wrapper']));
+    $ajax_commands[] = ajax_command_replace(
+      '#discount-code-message-wrapper',
+      render($form['submitted']['webform_discount_code_message_wrapper']));
 
     return array('#type' => 'ajax', '#commands' => $ajax_commands);
   }
@@ -152,7 +154,7 @@ function _webform_discount_code_field_ajax_callback($form, &$form_state) {
  * @throws \Exception
  */
 function _validate_webform_discount_code($discount_code) {
-  $discount_code_validator = new DiscountCode();
+  $discount_code_validator = new wf_me_discount_code_validator();
   $discount_code_validator->validate($discount_code);
 }
 
@@ -164,9 +166,9 @@ function _validate_webform_discount_code($discount_code) {
  */
 function _webform_civicrm_discount_settings_submit(&$form, &$form_state) {
   $nid = $form_state['values']['nid'];
-  $enableDiscountStatus = $form_state['values']['wcm_enable_discount'];
-  $webformDiscountSettings = new WebformDiscountSettings();
-  $webformDiscountSettings->save($nid, $enableDiscountStatus);
+  $enable_discount_status = $form_state['values']['wcm_enable_discount'];
+  $wf_me_discount_settings = new wf_me_discount_settings();
+  $wf_me_discount_settings->save($nid, $enable_discount_status);
 
   $node = node_load($nid);
   if (!_webform_has_discount_component_attached($node)) {

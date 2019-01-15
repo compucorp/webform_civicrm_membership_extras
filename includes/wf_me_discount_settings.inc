@@ -5,7 +5,7 @@
  * webform_discount_settings table. The webform_discount_details table is
  * used to track whether discount is enabled for a webform or not.
  */
-class WebformDiscountSettings {
+class wf_me_discount_settings {
 
   /**
    * Saves a record in the webform_discount_details table.
