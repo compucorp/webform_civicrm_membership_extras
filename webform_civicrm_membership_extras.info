@@ -8,3 +8,4 @@ core = 7.x
 ; Custom PHP classes
 files[] = src/Helpers/Extension/CiviDiscount.php
 files[] = src/Helpers/WebformDiscountDetails.php
+files[] = src/Helpers/Validator/DiscountCode.php

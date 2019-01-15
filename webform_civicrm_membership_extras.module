@@ -27,7 +27,7 @@ function webform_civicrm_membership_extras_webform_submission_insert($node, $sub
 /**
  * Implements hook_form_alter().
  */
-function webform_civicrm_membership_extras_form_alter(&$form, &$form_state, $form_id) {$me = '';
+function webform_civicrm_membership_extras_form_alter(&$form, &$form_state, $form_id) {
   $civiDiscountExtensionHelper = new CiviDiscount();
   $webformDiscountSettings = new WebformDiscountSettings();
   if ($form_id == 'wf_crm_configure_form') {
@@ -52,9 +52,109 @@ function webform_civicrm_membership_extras_form_alter(&$form, &$form_state, $for
     if (!$civiDiscountExtensionHelper->isEnabled() || !$isDiscountEnabled) {
       $form['submitted']['webform_discount_code_field']['#access'] = FALSE;
     }
+    else {
+      $fields = $form['submitted'];
+      $form['submitted']['webform_discount_code_message_wrapper'] = array(
+        '#type' => 'container',
+        '#weight' => $fields['webform_discount_code_field']['#weight'],
+        '#prefix' => '<div id="discount-code-message-wrapper">',
+        '#suffix' => '</div>',
+      );
+      $form['submitted']['webform_discount_code_message_wrapper']['webform_discount_code_field_markup'] = array(
+        '#markup' => '',
+      );
+      $form['submitted']['webform_discount_code_buttons_wrapper'] = array(
+        '#type' => 'container',
+        '#weight' => $fields['webform_discount_code_field']['#weight'] + 1,
+        '#prefix' => '<span id="discount-code-actions">',
+        '#suffix' => '</span>',
+      );
+      $form['submitted']['webform_discount_code_buttons_wrapper']['webform_discount_code_field_clear'] = array(
+        '#type' => 'submit',
+        '#value' => 'Clear',
+        '#submit' => array('_webform_discount_code_clear_submit_callback'),
+        '#access' => FALSE,
+        '#limit_validation_errors' => array(),
+        '#validate' => '',
+        '#ajax' => array(
+          'callback' => '_webform_discount_code_clear_ajax_callback',
+        ),
+      );
+      if (isset($form_state['disable_submit']['webform_discount_code_field'])) {
+        $form['submitted']['webform_discount_code_buttons_wrapper']['webform_discount_code_field_clear']['#access'] = TRUE;
+      }
+      $form['submitted']['webform_discount_code_buttons_wrapper']['webform_discount_code_field_apply'] = array(
+        '#type' => 'submit',
+        '#value' => 'Apply',
+        '#submit' => array('_webform_discount_code_field_submit_callback'),
+        '#limit_validation_errors' => array(),
+        '#validate' => 'test_validate',
+        '#ajax' => array(
+          'callback' => '_webform_discount_code_field_ajax_callback',
+        ),
+      );
+    }
   }
 }
 
+function _webform_discount_code_clear_submit_callback() {
+
+}
+
+function webform_discount_code_clear_ajax_callback() {
+
+}
+/**
+ * Custom submit callback for discount code apply
+ *
+ * @param array $form
+ * @param array $form_state
+ */
+function _webform_discount_code_field_submit_callback($form, &$form_state) {
+  $form_values = &$form_state['input']['submitted'];
+  if (!empty($form_values['webform_discount_code_field'])) {
+
+    try{
+      _validate_webform_discount_code($form_values['webform_discount_code_field']);
+    } catch(Exception $e) {
+      $form_state['discount_error_message'] = $e->getMessage();
+
+      return;
+    }
+
+  }
+  else {
+    $form_state['discount_error_message'] = t('The discount code you entered is invalid.');
+  }
+}
+
+/**
+ * Custom Ajax callback for discount code apply
+ *
+ * @param array $form
+ * @param array $form_state
+ */
+function _webform_discount_code_field_ajax_callback($form, &$form_state) {
+  if ($form_state['discount_error_message']) {
+    $markup = '<div class=\'discount-message\' style=\'background-color: #ffd6cb; color: #701a00;\'>' . $form_state['discount_error_message'] . '</div>';
+    $form['submitted']['webform_discount_code_message_wrapper']['webform_discount_code_field_markup']['#markup'] = $markup;
+    $ajax_commands[] = ajax_command_replace('#discount-code-message-wrapper', render($form['submitted']['webform_discount_code_message_wrapper']));
+
+    return array('#type' => 'ajax', '#commands' => $ajax_commands);
+  }
+}
+
+/**
+ * Validates the webform discount code.
+ *
+ * @param string $discount_code
+ *
+ * @throws \Exception
+ */
+function _validate_webform_discount_code($discount_code) {
+  $discount_code_validator = new DiscountCode();
+  $discount_code_validator->validate($discount_code);
+}
 
 /**
  * Submit callback for the webform discount settings
