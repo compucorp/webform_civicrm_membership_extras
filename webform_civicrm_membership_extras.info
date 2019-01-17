@@ -9,3 +9,5 @@ core = 7.x
 files[] = includes/wf_me_cividiscount_ext_helper.inc
 files[] = includes/wf_me_discount_settings.inc
 files[] = includes/wf_me_discount_code_validator.inc
+files[] = includes/wf_me_discount_amount_helper.inc
+files[] = includes/wf_me_discount_civicrm_apiwrapper.inc
