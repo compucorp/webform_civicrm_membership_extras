@@ -21,6 +21,11 @@ function webform_civicrm_membership_extras_webform_submission_insert($node, $sub
     $installmentsHandler = new CRM_MembershipExtras_Service_MembershipInstallmentsHandler($contributionRecurId);
     $installmentsHandler->createRemainingInstalmentContributionsUpfront();
   }
+
+  $discountCodeDetails = _membershipextras_getSubmittedDiscountCodeDetails($node, $submission);
+  if ($discountCodeDetails) {
+    _membershipextras_updateDiscountCodeUsage($discountCodeDetails, $node);
+  }
 }
 
 /**
@@ -56,14 +61,15 @@ function webform_civicrm_membership_extras_form_alter(&$form, &$form_state, $for
     }
   }
 
-  if (isset($form['submitted']['webform_discount_code_field'])) {
+  if (strpos($form_id, 'webform_client_form_') !== FALSE) {
     $is_discount_enabled = $wf_me_discount_settings->getDiscountStatus($form['#node']->nid);
     //Hide the apply discount field on webform if enable discount is disabled or cividiscount
     //extension is disabled.
     if (!$wf_me_cividiscount_helper->isEnabled() || !$is_discount_enabled) {
       $form['submitted']['webform_discount_code_field']['#access'] = FALSE;
     }
-    else {
+    if (isset($form['submitted']['webform_discount_code_field']) && $is_discount_enabled) {
+      _set_discount_code_status_in_session(FALSE);
       $fields = $form['submitted'];
       $form['submitted']['webform_discount_code_message_wrapper'] = array(
         '#type' => 'container',
@@ -91,23 +97,25 @@ function webform_civicrm_membership_extras_form_alter(&$form, &$form_state, $for
           'callback' => '_webform_discount_code_clear_ajax_callback',
         ),
       );
-      if (isset($form_state['disable_submit']['webform_discount_code_field'])) {
-        $form['submitted']['webform_discount_code_buttons_wrapper']['webform_discount_code_field_clear']['#access'] = TRUE;
-      }
       $form['submitted']['webform_discount_code_buttons_wrapper']['webform_discount_code_field_apply'] = array(
         '#type' => 'submit',
         '#value' => 'Apply',
         '#submit' => array('_webform_discount_code_field_submit_callback'),
         '#limit_validation_errors' => array(),
-        '#validate' => 'test_validate',
+        '#validate' => '',
         '#ajax' => array(
           'callback' => '_webform_discount_code_field_ajax_callback',
         ),
       );
 
+      if ($form_state['disable_submit']['webform_discount_code_field']) {
+        _set_discount_code_status_in_session(TRUE);
+        $form['submitted']['webform_discount_code_buttons_wrapper']['webform_discount_code_field_clear']['#access'] = TRUE;
+      }
+
       //Add custom function to set discounted line items in session that runs
       //before wf_crm_validate because the total contribution is calculated and saved in wf_crm_validate.
-       array_unshift($form['#validate'], '_set_discounted_membership_items_in_session');
+      array_unshift($form['#validate'], '_set_discounted_membership_items_in_session');
 
       $form['#validate'][] = '_rebuild_form_on_validation_error';
 
@@ -123,6 +131,10 @@ function webform_civicrm_membership_extras_form_alter(&$form, &$form_state, $for
           $form['#validate'][] = $vc;
         }
       }
+    }
+
+    if ($is_discount_enabled) {
+      $form['#validate'][] = '_clear_set_discount_code_related_data';
     }
   }
 }
@@ -144,6 +156,16 @@ function _rebuild_form_on_validation_error($form, &$form_state) {
   if (form_get_errors() && isset($form['submitted']['webform_discount_code_field'])) {
     $form_state['rebuild'] = TRUE;
   }
+}
+
+
+/**
+ * Sets status of discount code in session.
+ *
+ * @param bool $status
+ */
+function _set_discount_code_status_in_session($status) {
+  $_SESSION['discount_code_applied'] = $status;
 }
 
 /**
@@ -179,17 +201,26 @@ function _set_discounted_membership_items_in_session($form, &$form_state) {
  * @param array $form_state
  */
 function _webform_discount_code_clear_submit_callback($form, &$form_state) {
-  // Reset amount fields.
   unset($form_state['values']['submitted']['webform_discount_code_field']);
   unset($form_state['input']['submitted']['webform_discount_code_field']);
-
-  // Enable Apply submit button.
   $form_state['enable_submit']['webform_discount_code_field'] = 1;
   $form_state['enable_submit_discount']['webform_discount_code_field'] = 1;
+  $_SESSION['discount_code_applied'] = FALSE;
+  _clear_set_discount_code_related_data($form, $form_state);
+  $form_state['rebuild'] = TRUE;
+}
+
+/**
+ * Clears general discount code related data stored in form state and in
+ * session.
+ *
+ * @param array $form
+ * @param array $form_state
+ */
+function _clear_set_discount_code_related_data($form, &$form_state) {
   unset($form_state['disable_submit']['webform_discount_code_field']);
   unset($form_state['line_items']);
   unset($_SESSION['webform_discount_submit']);
-  $form_state['rebuild'] = TRUE;
 }
 
 /**
@@ -304,6 +335,7 @@ function _webform_discount_code_field_submit_callback($form, &$form_state) {
       $form_state['discount_membership_result']['total_amount'] = $total_amount;
       $form_state['discount_membership_result']['line_items'] = $form_state['line_items'];
       $form_state['disable_submit']['webform_discount_code_field'] = 1;
+      $_SESSION['discount_code_applied'] = TRUE;
       $form_state['rebuild'] = TRUE;
     }
   }
@@ -473,6 +505,83 @@ function _membershipextras_isCivicrmWebform($node) {
   }
 
   return FALSE;
+}
+
+/**
+ * Returns the details of the discount code applied on the webform.
+ *
+ * @param object $node
+ * @param object $submission
+ *
+ * @return array
+ */
+function _membershipextras_getSubmittedDiscountCodeDetails($node, $submission) {
+  $webformComponents = $node->webform['components'];
+  $discountCodeFormId = '';
+  foreach ($webformComponents as $key => $component) {
+    if ($component['form_key'] == 'webform_discount_code_field'){
+      $discountCodeFormId = $key;
+      break;
+    }
+  }
+
+  if ($discountCodeFormId &&
+    !empty($submission->data[$discountCodeFormId][0]) &&
+    !empty($_SESSION['discount_code_applied'])
+  ) {
+    $cividiscountExtHelper =  new wf_me_cividiscount_ext_helper();
+
+    return $cividiscountExtHelper->getDiscountCodeDetails($submission->data[$discountCodeFormId][0]);
+  }
+}
+
+/**
+ * Updates the discount code usage count in cividiscount and also
+ * updates the discount code tracking details.
+ *
+ * @param array $discountCodeDetails
+ * @param object $node
+ */
+function _membershipextras_updateDiscountCodeUsage($discountCodeDetails, $node) {
+  $lineItems = _membershipextras_getCiviWebformPostprocessorPropertyValue($node, 'line_items');
+  $lineItemsMemberships = array();
+  foreach ($lineItems as $key => $item) {
+    if ($item['entity_table'] == 'civicrm_membership') {
+      $lineItemsMemberships[$item['membership_id']] = $item;
+    }
+  }
+
+  if (empty($lineItemsMemberships)) {
+    return;
+  }
+
+  $membershipDetails = civicrm_api3('Membership', 'get', [
+    'id' => ['IN' => array_keys($lineItemsMemberships)],
+  ])['values'];
+
+  $discountCodeMembershipTypes = $discountCodeDetails['memberships'];
+  $discountCodeAppliedMemberships = [];
+  foreach ($membershipDetails as $detail) {
+    if(in_array($detail['membership_type_id'], $discountCodeMembershipTypes)) {
+      $discountCodeAppliedMemberships[$detail['id']] = $detail;
+    }
+  }
+
+  if (empty($discountCodeAppliedMemberships)) {
+    return;
+  }
+
+  $cividiscountExtHelper = new wf_me_cividiscount_ext_helper();
+  foreach ($discountCodeAppliedMemberships as $membershipId => $membership) {
+    $cividiscountExtHelper->updateDiscountTrackingDetails(
+      $membership['contact_id'],
+      $lineItemsMemberships[$membershipId]['entity_id'],
+      $lineItemsMemberships[$membershipId]['contribution_id'],
+      $discountCodeDetails['id']
+    );
+  }
+  $cividiscountExtHelper->updateDiscountCodeUsage($discountCodeDetails['id']);
+  _set_discount_code_status_in_session(FALSE);
 }
 
 /**
