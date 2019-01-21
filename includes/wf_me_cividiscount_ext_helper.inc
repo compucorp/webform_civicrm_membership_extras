@@ -40,4 +40,41 @@ class wf_me_cividiscount_ext_helper {
       return $result['values'][0];
     }
   }
+
+  /**
+   * Updates the discount code tracking details in cividiscount.
+   *
+   * @param int $contactId
+   * @param int $entityID
+   * @param int $contributionID
+   * @param int $discountCodeId
+   */
+  public function updateDiscountTrackingDetails($contactId, $entityID, $contributionID, $discountCodeId) {
+    civicrm_api3('DiscountTrack', 'create', [
+      'entity_table' => 'civicrm_membership',
+      'entity_id' => $entityID,
+      'contribution_id' => $contributionID,
+      'contact_id' => $contactId,
+      'item_id' => $discountCodeId,
+      'used_date' => date('Y-m-d H:i:s')
+    ]);
+  }
+
+  /**
+   * Updates the discount code usage count.
+   *
+   * @param int $discountCodeId
+   */
+  public function updateDiscountCodeUsage($discountCodeId) {
+    $result = civicrm_api3('DiscountCode', 'get', [
+      'id' => $discountCodeId,
+    ]);
+
+    if ($result['values'][0]) {
+      civicrm_api3('DiscountCode', 'create', [
+        'id' => $result['values'][0]['id'],
+        'count_use' => $result['values'][0]['count_use'] + 1
+      ]);
+    }
+  }
 }
