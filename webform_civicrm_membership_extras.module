@@ -68,7 +68,7 @@ function webform_civicrm_membership_extras_form_alter(&$form, &$form_state, $for
     if (!$wf_me_cividiscount_helper->isEnabled() || !$is_discount_enabled) {
       $form['submitted']['webform_discount_code_field']['#access'] = FALSE;
     }
-    if (isset($form['submitted']['webform_discount_code_field']) && $is_discount_enabled) {
+    elseif (isset($form['submitted']['webform_discount_code_field'])) {
       _set_discount_code_status_in_session(FALSE);
       $fields = $form['submitted'];
       $form['submitted']['webform_discount_code_message_wrapper'] = array(
