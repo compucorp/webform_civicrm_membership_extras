@@ -44,27 +44,63 @@ class wf_me_discount_amount_helper {
    * @return array|NULL
    */
   public function getAdjustedLineItems($discountCode, $lineItems, $membershipTypesAdded) {
-    $civiDiscountExtensionHelper = new wf_me_cividiscount_ext_helper();
-    $discountCodeDetails = $civiDiscountExtensionHelper->getDiscountCodeDetails($discountCode);
+    $discountCodeDetails =$this->getDiscountDetails($discountCode);
 
     if (empty($discountCodeDetails['memberships'])) {
       return NULL;
     }
 
+    $membershipNamesForDiscount = $this->getMembershipNamesForDiscount($discountCodeDetails['memberships']);
+    if (!array_intersect(array_keys($membershipNamesForDiscount), $membershipTypesAdded)) {
+      return NULL;
+    }
+
+    return $this->adjustLineItems($lineItems, $membershipNamesForDiscount, $discountCodeDetails);
+  }
+
+  /**
+   * Gets the discount code details for a discount code.
+   *
+   * @param string $discountCode
+   *
+   * @return array
+   */
+  private function getDiscountDetails($discountCode) {
+    $civiDiscountExtensionHelper = new wf_me_cividiscount_ext_helper();
+
+    return $civiDiscountExtensionHelper->getDiscountCodeDetails($discountCode);
+  }
+
+  /**
+   * Gets membership names for the membership Ids.
+   *
+   * @param array $membershipIds
+   *
+   * @return array|null
+   */
+  private function getMembershipNamesForDiscount($membershipIds) {
     $result = civicrm_api3('MembershipType', 'get', array(
       'sequential' => 1,
-      'id' => ['IN' => $discountCodeDetails['memberships']]
+      'id' => ['IN' => $membershipIds]
     ));
 
     if ($result['count'] == 0) {
       return NULL;
     }
 
-    $membershipNamesForDiscount = array_column($result['values'], 'name', 'id');
-    if (!array_intersect(array_keys($membershipNamesForDiscount), $membershipTypesAdded)) {
-      return NULL;
-    }
+   return array_column($result['values'], 'name', 'id');
+  }
 
+  /**
+   * Adjusts the line items for discount application to the amount.
+   *
+   * @param array $lineItems
+   * @param array $membershipNamesForDiscount
+   * @param array $discountCodeDetails
+   *
+   * @return array
+   */
+  private function adjustLineItems($lineItems, $membershipNamesForDiscount, $discountCodeDetails) {
     $totalAmount = 0;
     foreach ($lineItems as $key => $lineItem) {
       $membershipID = $this->getLineItemMembershipIdForDiscount($membershipNamesForDiscount, $lineItem['label']);

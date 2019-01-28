@@ -3,12 +3,11 @@
 /**
  * This class is responsible for for interacting with the Civicrm CiviDiscount
  * Extension and its API's
- * certain routes
  */
 class wf_me_cividiscount_ext_helper {
 
   /**
-   * Checks whether this extension is enabled or not.
+   * Checks whether CiviDiscount extension is enabled or not.
    *
    * @return bool
    */

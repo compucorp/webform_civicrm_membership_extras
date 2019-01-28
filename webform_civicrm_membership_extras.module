@@ -44,98 +44,123 @@ function webform_civicrm_membership_extras_civicrm_apiWrappers(&$wrappers, $apiR
  * Implements hook_form_alter().
  */
 function webform_civicrm_membership_extras_form_alter(&$form, &$form_state, $form_id) {
-  $wf_me_cividiscount_helper = new wf_me_cividiscount_ext_helper();
-  $wf_me_discount_settings = new wf_me_discount_settings();
   if ($form_id == 'wf_crm_configure_form') {
-    if ($wf_me_cividiscount_helper->isEnabled()) {
-      $nid = $form_state['storage']['nid'];
-      $discount_status = $wf_me_discount_settings->getDiscountStatus($nid);
-
-      $form['contribution']['wcm_enable_discount'] = array(
-        '#type' => 'checkbox',
-        '#title' => t('Enable Discounts'),
-        '#default_value' => $discount_status ,
-        '#description' => 'When adding this field to you webform, please make sure it is on the Civi contribution page'
-      );
-      $form['#submit'][] = '_webform_civicrm_discount_settings_submit';
-    }
+    wf_me_wf_crm_configure_form_alter_handler($form, $form_state, $form_id);
   }
 
   if (strpos($form_id, 'webform_client_form_') !== FALSE) {
-    $is_discount_enabled = $wf_me_discount_settings->getDiscountStatus($form['#node']->nid);
-    //Hide the apply discount field on webform if enable discount is disabled or cividiscount
-    //extension is disabled.
-    if (!$wf_me_cividiscount_helper->isEnabled() || !$is_discount_enabled) {
-      $form['submitted']['webform_discount_code_field']['#access'] = FALSE;
+    wf_me_webform_client_form_alter_handler($form, $form_state, $form_id);
+  }
+}
+
+/**
+ * The function that alters the `wf_crm_configure_form` admin form.
+ *
+ * @param array $form
+ * @param array $form_state
+ * @param string $form_id
+ */
+function wf_me_wf_crm_configure_form_alter_handler(&$form, &$form_state, $form_id) {
+  $wf_me_cividiscount_helper = new wf_me_cividiscount_ext_helper();
+  $wf_me_discount_settings = new wf_me_discount_settings();
+
+  if ($wf_me_cividiscount_helper->isEnabled()) {
+    $nid = $form_state['storage']['nid'];
+    $discount_status = $wf_me_discount_settings->getDiscountStatus($nid);
+
+    $form['contribution']['wcm_enable_discount'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Enable Discounts'),
+      '#default_value' => $discount_status ,
+      '#description' => 'When adding this field to you webform, please make sure it is on the Civi contribution page'
+    );
+    $form['#submit'][] = '_webform_civicrm_discount_settings_submit';
+  }
+}
+
+/**
+ * The function that alters the `webform_client_form_WEBFORMID`  form.
+ *
+ * @param array $form
+ * @param array $form_state
+ * @param string $form_id
+ */
+function wf_me_webform_client_form_alter_handler(&$form, &$form_state, $form_id) {
+  $wf_me_cividiscount_helper = new wf_me_cividiscount_ext_helper();
+  $wf_me_discount_settings = new wf_me_discount_settings();
+  $is_discount_enabled = $wf_me_discount_settings->getDiscountStatus($form['#node']->nid);
+  //Hide the apply discount field on webform if enable discount is disabled or cividiscount
+  //extension is disabled.
+  if (!$wf_me_cividiscount_helper->isEnabled() || !$is_discount_enabled) {
+    $form['submitted']['webform_discount_code_field']['#access'] = FALSE;
+  }
+  elseif (isset($form['submitted']['webform_discount_code_field'])) {
+    _set_discount_code_status_in_session(FALSE);
+    $fields = $form['submitted'];
+    $form['submitted']['webform_discount_code_message_wrapper'] = array(
+      '#type' => 'container',
+      '#weight' => $fields['webform_discount_code_field']['#weight'],
+      '#prefix' => '<div id="discount-code-message-wrapper">',
+      '#suffix' => '</div>',
+    );
+    $form['submitted']['webform_discount_code_message_wrapper']['webform_discount_code_field_markup'] = array(
+      '#markup' => '',
+    );
+    $form['submitted']['webform_discount_code_buttons_wrapper'] = array(
+      '#type' => 'container',
+      '#weight' => $fields['webform_discount_code_field']['#weight'] + 1,
+      '#prefix' => '<span id="discount-code-actions">',
+      '#suffix' => '</span>',
+    );
+    $form['submitted']['webform_discount_code_buttons_wrapper']['webform_discount_code_field_clear'] = array(
+      '#type' => 'submit',
+      '#value' => 'Clear',
+      '#submit' => array('_webform_discount_code_clear_submit_callback'),
+      '#access' => FALSE,
+      '#limit_validation_errors' => array(),
+      '#validate' => '',
+      '#ajax' => array(
+        'callback' => '_webform_discount_code_clear_ajax_callback',
+      ),
+    );
+    $form['submitted']['webform_discount_code_buttons_wrapper']['webform_discount_code_field_apply'] = array(
+      '#type' => 'submit',
+      '#value' => 'Apply',
+      '#submit' => array('_webform_discount_code_field_submit_callback'),
+      '#limit_validation_errors' => array(),
+      '#validate' => '',
+      '#ajax' => array(
+        'callback' => '_webform_discount_code_field_ajax_callback',
+      ),
+    );
+
+    if ($form_state['disable_submit']['webform_discount_code_field']) {
+      _set_discount_code_status_in_session(TRUE);
+      $form['submitted']['webform_discount_code_buttons_wrapper']['webform_discount_code_field_clear']['#access'] = TRUE;
     }
-    elseif (isset($form['submitted']['webform_discount_code_field'])) {
-      _set_discount_code_status_in_session(FALSE);
-      $fields = $form['submitted'];
-      $form['submitted']['webform_discount_code_message_wrapper'] = array(
-        '#type' => 'container',
-        '#weight' => $fields['webform_discount_code_field']['#weight'],
-        '#prefix' => '<div id="discount-code-message-wrapper">',
-        '#suffix' => '</div>',
-      );
-      $form['submitted']['webform_discount_code_message_wrapper']['webform_discount_code_field_markup'] = array(
-        '#markup' => '',
-      );
-      $form['submitted']['webform_discount_code_buttons_wrapper'] = array(
-        '#type' => 'container',
-        '#weight' => $fields['webform_discount_code_field']['#weight'] + 1,
-        '#prefix' => '<span id="discount-code-actions">',
-        '#suffix' => '</span>',
-      );
-      $form['submitted']['webform_discount_code_buttons_wrapper']['webform_discount_code_field_clear'] = array(
-        '#type' => 'submit',
-        '#value' => 'Clear',
-        '#submit' => array('_webform_discount_code_clear_submit_callback'),
-        '#access' => FALSE,
-        '#limit_validation_errors' => array(),
-        '#validate' => '',
-        '#ajax' => array(
-          'callback' => '_webform_discount_code_clear_ajax_callback',
-        ),
-      );
-      $form['submitted']['webform_discount_code_buttons_wrapper']['webform_discount_code_field_apply'] = array(
-        '#type' => 'submit',
-        '#value' => 'Apply',
-        '#submit' => array('_webform_discount_code_field_submit_callback'),
-        '#limit_validation_errors' => array(),
-        '#validate' => '',
-        '#ajax' => array(
-          'callback' => '_webform_discount_code_field_ajax_callback',
-        ),
-      );
 
-      if ($form_state['disable_submit']['webform_discount_code_field']) {
-        _set_discount_code_status_in_session(TRUE);
-        $form['submitted']['webform_discount_code_buttons_wrapper']['webform_discount_code_field_clear']['#access'] = TRUE;
-      }
+    //Add custom function to set discounted line items in session that runs
+    //before wf_crm_validate because the total contribution is calculated and saved in wf_crm_validate.
+    array_unshift($form['#validate'], '_set_discounted_membership_items_in_session');
 
-      //Add custom function to set discounted line items in session that runs
-      //before wf_crm_validate because the total contribution is calculated and saved in wf_crm_validate.
-      array_unshift($form['#validate'], '_set_discounted_membership_items_in_session');
+    $form['#validate'][] = '_rebuild_form_on_validation_error';
 
-      $form['#validate'][] = '_rebuild_form_on_validation_error';
-
-      // if total amount is 0 (100% discount) remove wf_crm_validate which makes payment
-      if (isset($form_state['total_amount']) && $form_state['total_amount'] == 0) {
-        $form['submitted']['civicrm_1_contribution_1_contribution_contribution_page_id']['#suffix'] = '';
-        $validate_callbacks = $form['#validate'];
-        $form['#validate'] = array();
-        foreach ($validate_callbacks as $vc) {
-          if ($vc == 'wf_crm_validate') {
-            continue;
-          }
-          $form['#validate'][] = $vc;
+    // if total amount is 0 (100% discount) remove wf_crm_validate which makes payment
+    if (isset($form_state['total_amount']) && $form_state['total_amount'] == 0) {
+      $form['submitted']['civicrm_1_contribution_1_contribution_contribution_page_id']['#suffix'] = '';
+      $validate_callbacks = $form['#validate'];
+      $form['#validate'] = array();
+      foreach ($validate_callbacks as $vc) {
+        if ($vc == 'wf_crm_validate') {
+          continue;
         }
+        $form['#validate'][] = $vc;
       }
     }
+  }
 
-    if ($is_discount_enabled) {
-      $form['#validate'][] = '_clear_set_discount_code_related_data';
-    }
+  if ($is_discount_enabled) {
+    $form['#validate'][] = '_clear_set_discount_code_related_data';
   }
 }
 
