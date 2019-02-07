@@ -24,7 +24,7 @@ class wf_me_discount_code_validator {
     }
 
     // Validate discount code usage limit.
-    if (!empty($discountCodeDetails['count_max']) && $discountCodeDetails['count_max'] >= $discountCodeDetails['count_use']) {
+    if (!empty($discountCodeDetails['count_max']) && $discountCodeDetails['count_use'] >= $discountCodeDetails['count_max']) {
       throw new Exception(t('Discount code usage exceeded.'));
     }
 
