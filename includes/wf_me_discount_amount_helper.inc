@@ -20,15 +20,22 @@ class wf_me_discount_amount_helper {
    */
   private $formStorage;
 
+  /**
+   * @var array
+   */
+  private $form;
+
   private $numberOfInstallments;
 
   /**
    * wf_me_discount_amount_helper constructor.
    *
    * @param array $formStorage
+   * @param array $form
    */
-  public function __construct($formStorage) {
+  public function __construct($form, $formStorage) {
     $this->formStorage = $formStorage;
+    $this->form = $form;
   }
 
   /**
@@ -186,7 +193,7 @@ class wf_me_discount_amount_helper {
    */
   public function getNumberOfInstallments() {
     if (!$this->numberOfInstallments) {
-      $webformComponents = $this->formStorage['component_tree']['children'];
+      $webformComponents = $this->form['#node']->webform['components'];
       $installments_key = '';
       $installments = '';
       foreach ($webformComponents as $key => $value) {

@@ -207,7 +207,7 @@ function _set_discount_code_status_in_session($status) {
  * @param array $form_state
  */
 function _set_discounted_membership_items_in_session($form, &$form_state) {
-  $wf_me_discount_amount_helper = new wf_me_discount_amount_helper($form_state['storage']);
+  $wf_me_discount_amount_helper = new wf_me_discount_amount_helper($form, $form_state['storage']);
   $number_of_installments = $wf_me_discount_amount_helper->getNumberOfInstallments();
   $membership_type_added = array();
   foreach ($form_state['line_items'] as $item) {
@@ -347,7 +347,7 @@ function _webform_discount_code_field_submit_callback($form, &$form_state) {
 
     $line_items = $form_state['civicrm']['line_items'];
     $discount_code = $form_values['webform_discount_code_field'];
-    $wf_me_discount_amount_helper = new wf_me_discount_amount_helper($form_state['storage']);
+    $wf_me_discount_amount_helper = new wf_me_discount_amount_helper($form, $form_state['storage']);
     $adjusted_line_items = $wf_me_discount_amount_helper->getAdjustedLineItems($discount_code, $line_items, $membership_type_added);
 
     if (!empty($adjusted_line_items)) {
