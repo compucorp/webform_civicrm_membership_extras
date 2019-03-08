@@ -15,17 +15,37 @@ function webform_civicrm_membership_extras_webform_submission_insert($node, $sub
   }
 
   $contributionRecurId = _membershipextras_getPaymentPlanRecurContribution($node);
-
+  
   if (!empty($contributionRecurId)) {
     civicrm_initialize();
     $installmentsHandler = new CRM_MembershipExtras_Service_MembershipInstallmentsHandler($contributionRecurId);
-    $installmentsHandler->createRemainingInstalmentContributionsUpfront();
+    $installmentsHandler->createRemainingInstalmentContributionsUpfront(); 
+    $webform = $node->webform_civicrm;
+    $selectedMemberships = array();
+    foreach ($webform['data']['membership'] as $k1 => $contactMembership) {
+      foreach ($contactMembership['membership'] as $k2 => $mem) {
+        if (isset($mem['add_to_existing_recur_contribution'])) {
+          _add_recur_membership_line_item($contributionRecurId);
+        }
+      }
+    }
   }
 
   $discountCodeDetails = _membershipextras_getSubmittedDiscountCodeDetails($node, $submission);
   if ($discountCodeDetails) {
     _membershipextras_updateDiscountCodeUsage($discountCodeDetails, $node);
   }
+}
+
+/**
+ * Creates Contribution Recur Subscription Line Item
+ *
+ * @param $contributionRecurId
+ */
+function _add_recur_membership_line_item($contributionRecurId) {
+  $a = civicrm_api3('ContributionRecurLineItem', 'createsubscriptionline', [
+    'contribution_recur_id' => $contributionRecurId,
+  ]);
 }
 
 /**
