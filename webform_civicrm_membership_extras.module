@@ -43,7 +43,7 @@ function webform_civicrm_membership_extras_webform_submission_insert($node, $sub
  * @param $contributionRecurId
  */
 function _add_recur_membership_line_item($contributionRecurId) {
-  $a = civicrm_api3('ContributionRecurLineItem', 'createsubscriptionline', [
+  $a = civicrm_api3('ContributionRecurLineItem', 'createsubscriptionlines', [
     'contribution_recur_id' => $contributionRecurId,
   ]);
 }
