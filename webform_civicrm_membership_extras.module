@@ -458,7 +458,7 @@ function _webform_civicrm_discount_settings_submit(&$form, &$form_state) {
   $wf_me_discount_settings->save($nid, $enable_discount_status);
 
   $node = node_load($nid);
-  if (!_webform_has_discount_component_attached($node)) {
+  if ($enable_discount_status == TRUE && !_webform_has_discount_component_attached($node)) {
     _webform_discount_civicrm_create_discount_component($node);
   }
 }
