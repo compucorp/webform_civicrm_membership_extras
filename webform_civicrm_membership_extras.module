@@ -77,7 +77,7 @@ function wf_me_wf_crm_configure_form_alter_handler(&$form, &$form_state, $form_i
       '#type' => 'checkbox',
       '#title' => t('Enable Discounts'),
       '#default_value' => $discount_status ,
-      '#description' => 'When adding this field to you webform, please make sure it is on the Civi contribution page'
+      '#description' => 'When adding this field to the webform, please make sure it is also added to the CiviCRM contribution page'
     );
     $form['#submit'][] = '_webform_civicrm_discount_settings_submit';
   }
@@ -458,28 +458,34 @@ function _webform_civicrm_discount_settings_submit(&$form, &$form_state) {
   $wf_me_discount_settings->save($nid, $enable_discount_status);
 
   $node = node_load($nid);
-  if ($enable_discount_status == TRUE && !_webform_has_discount_component_attached($node)) {
+  $civiDiscountComponent = _webform_get_webform_component_by_name($node, 'webform_discount_code_field');
+  if ($enable_discount_status == TRUE && empty($civiDiscountComponent)) {
     _webform_discount_civicrm_create_discount_component($node);
+  }
+  elseif (empty($enable_discount_status) && !empty($civiDiscountComponent)) {
+    webform_component_delete($node, $civiDiscountComponent);
   }
 }
 
 
 /**
- * Checks whether the webform has the discount field
- * component already attached to it.
- * @param object $node
- *   Webform Node object.
+ * Gets the Webform component by its name
  *
- * @return bool
+ * @param $node
+ *   The webform node
+ * @param $componentName
+ *   The component to get name
+ *
+ * @return mixed|null
  */
-function _webform_has_discount_component_attached($node) {
+function _webform_get_webform_component_by_name($node, $componentName) {
   foreach ($node->webform['components'] as $key => $value) {
-    if ($value['form_key'] == 'webform_discount_code_field') {
-      return TRUE;
+    if ($value['form_key'] == $componentName) {
+      return $value;
     }
   }
 
-  return FALSE;
+  return NULL;
 }
 
 /**
