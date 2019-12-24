@@ -20,6 +20,7 @@ function webform_civicrm_membership_extras_webform_submission_insert($node, $sub
     civicrm_initialize();
 
     $lineItemCreator = new CRM_MembershipExtras_Hook_PostProcess_RecurringContributionLineItemCreator($contributionRecurId);
+    $lineItemCreator->forceAutorenewalFlagCalculation();
     $lineItemCreator->create();
 
     $installmentsHandler = new CRM_MembershipExtras_Service_MembershipInstallmentsHandler($contributionRecurId);
