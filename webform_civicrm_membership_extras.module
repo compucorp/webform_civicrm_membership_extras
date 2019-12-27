@@ -19,12 +19,8 @@ function webform_civicrm_membership_extras_webform_submission_insert($node, $sub
   if (!empty($contributionRecurId)) {
     civicrm_initialize();
 
-    $lineItemCreator = new CRM_MembershipExtras_Hook_PostProcess_RecurringContributionLineItemCreator($contributionRecurId);
-    $lineItemCreator->forceAutorenewalFlagCalculation();
-    $lineItemCreator->create();
-
-    $installmentsHandler = new CRM_MembershipExtras_Service_MembershipInstallmentsHandler($contributionRecurId);
-    $installmentsHandler->createRemainingInstalmentContributionsUpfront();
+    CRM_MembershipExtras_WebformAPI_RecurringContributionLineItemCreator::create($contributionRecurId);
+    CRM_MembershipExtras_WebformAPI_UpfrontContributionsCreator::create($contributionRecurId);
   }
 
   $discountCodeDetails = _membershipextras_getSubmittedDiscountCodeDetails($node, $submission);
