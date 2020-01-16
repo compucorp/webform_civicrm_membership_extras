@@ -67,6 +67,10 @@ function webform_civicrm_membership_extras_form_alter(&$form, &$form_state, $for
  * @param string $form_id
  */
 function wf_me_wf_crm_configure_form_alter_handler(&$form, &$form_state, $form_id) {
+  if (!isset($form['contribution'])) {
+    return;
+  }
+
   $wf_me_cividiscount_helper = new wf_me_cividiscount_ext_helper();
   $wf_me_discount_settings = new wf_me_discount_settings();
 
