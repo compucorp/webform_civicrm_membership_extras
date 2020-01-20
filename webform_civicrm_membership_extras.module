@@ -67,21 +67,26 @@ function webform_civicrm_membership_extras_form_alter(&$form, &$form_state, $for
  * @param string $form_id
  */
 function wf_me_wf_crm_configure_form_alter_handler(&$form, &$form_state, $form_id) {
-  $wf_me_cividiscount_helper = new wf_me_cividiscount_ext_helper();
-  $wf_me_discount_settings = new wf_me_discount_settings();
-
-  if ($wf_me_cividiscount_helper->isEnabled()) {
-    $nid = $form_state['storage']['nid'];
-    $discount_status = $wf_me_discount_settings->getDiscountStatus($nid);
-
-    $form['contribution']['wcm_enable_discount'] = array(
-      '#type' => 'checkbox',
-      '#title' => t('Enable Discounts'),
-      '#default_value' => $discount_status ,
-      '#description' => 'When adding this field to the webform, please make sure it is also added to the CiviCRM contribution page'
-    );
-    $form['#submit'][] = '_webform_civicrm_discount_settings_submit';
+  if (!isset($form['contribution'])) {
+    return;
   }
+
+  $wf_me_cividiscount_helper = new wf_me_cividiscount_ext_helper();
+  if (!$wf_me_cividiscount_helper->isEnabled()) {
+    return;
+  }
+
+  $wf_me_discount_settings = new wf_me_discount_settings();
+  $nid = $form_state['storage']['nid'];
+  $discount_status = $wf_me_discount_settings->getDiscountStatus($nid);
+
+  $form['contribution']['wcm_enable_discount'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Enable Discounts'),
+    '#default_value' => $discount_status ,
+    '#description' => 'When adding this field to the webform, please make sure it is also added to the CiviCRM contribution page'
+  );
+  $form['#submit'][] = '_webform_civicrm_discount_settings_submit';
 }
 
 /**
