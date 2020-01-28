@@ -18,8 +18,9 @@ function webform_civicrm_membership_extras_webform_submission_insert($node, $sub
 
   if (!empty($contributionRecurId)) {
     civicrm_initialize();
-    $installmentsHandler = new CRM_MembershipExtras_Service_MembershipInstallmentsHandler($contributionRecurId);
-    $installmentsHandler->createRemainingInstalmentContributionsUpfront();
+
+    CRM_MembershipExtras_WebformAPI_RecurringContributionLineItemCreator::create($contributionRecurId);
+    CRM_MembershipExtras_WebformAPI_UpfrontContributionsCreator::create($contributionRecurId);
   }
 
   $discountCodeDetails = _membershipextras_getSubmittedDiscountCodeDetails($node, $submission);
@@ -35,6 +36,11 @@ function webform_civicrm_membership_extras_webform_submission_insert($node, $sub
  * @param $apiRequest
  */
 function webform_civicrm_membership_extras_civicrm_apiWrappers(&$wrappers, $apiRequest) {
+  // prevent executing this for API v4 calls
+  if (is_object($apiRequest)) {
+    return;
+  }
+
   // Add custom civicrm api wrapper to alter line item price
   $wrappers[] = new wf_me_discount_civicrm_apiwrapper();
 }
@@ -61,21 +67,26 @@ function webform_civicrm_membership_extras_form_alter(&$form, &$form_state, $for
  * @param string $form_id
  */
 function wf_me_wf_crm_configure_form_alter_handler(&$form, &$form_state, $form_id) {
-  $wf_me_cividiscount_helper = new wf_me_cividiscount_ext_helper();
-  $wf_me_discount_settings = new wf_me_discount_settings();
-
-  if ($wf_me_cividiscount_helper->isEnabled()) {
-    $nid = $form_state['storage']['nid'];
-    $discount_status = $wf_me_discount_settings->getDiscountStatus($nid);
-
-    $form['contribution']['wcm_enable_discount'] = array(
-      '#type' => 'checkbox',
-      '#title' => t('Enable Discounts'),
-      '#default_value' => $discount_status ,
-      '#description' => 'When adding this field to you webform, please make sure it is on the Civi contribution page'
-    );
-    $form['#submit'][] = '_webform_civicrm_discount_settings_submit';
+  if (!isset($form['contribution'])) {
+    return;
   }
+
+  $wf_me_cividiscount_helper = new wf_me_cividiscount_ext_helper();
+  if (!$wf_me_cividiscount_helper->isEnabled()) {
+    return;
+  }
+
+  $wf_me_discount_settings = new wf_me_discount_settings();
+  $nid = $form_state['storage']['nid'];
+  $discount_status = $wf_me_discount_settings->getDiscountStatus($nid);
+
+  $form['contribution']['wcm_enable_discount'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Enable Discounts'),
+    '#default_value' => $discount_status ,
+    '#description' => 'When adding this field to the webform, please make sure it is also added to the CiviCRM contribution page'
+  );
+  $form['#submit'][] = '_webform_civicrm_discount_settings_submit';
 }
 
 /**
@@ -453,28 +464,34 @@ function _webform_civicrm_discount_settings_submit(&$form, &$form_state) {
   $wf_me_discount_settings->save($nid, $enable_discount_status);
 
   $node = node_load($nid);
-  if (!_webform_has_discount_component_attached($node)) {
+  $civiDiscountComponent = _webform_get_webform_component_by_name($node, 'webform_discount_code_field');
+  if ($enable_discount_status == TRUE && empty($civiDiscountComponent)) {
     _webform_discount_civicrm_create_discount_component($node);
+  }
+  elseif (empty($enable_discount_status) && !empty($civiDiscountComponent)) {
+    webform_component_delete($node, $civiDiscountComponent);
   }
 }
 
 
 /**
- * Checks whether the webform has the discount field
- * component already attached to it.
- * @param object $node
- *   Webform Node object.
+ * Gets the Webform component by its name
  *
- * @return bool
+ * @param $node
+ *   The webform node
+ * @param $componentName
+ *   The component to get name
+ *
+ * @return mixed|null
  */
-function _webform_has_discount_component_attached($node) {
+function _webform_get_webform_component_by_name($node, $componentName) {
   foreach ($node->webform['components'] as $key => $value) {
-    if ($value['form_key'] == 'webform_discount_code_field') {
-      return TRUE;
+    if ($value['form_key'] == $componentName) {
+      return $value;
     }
   }
 
-  return FALSE;
+  return NULL;
 }
 
 /**

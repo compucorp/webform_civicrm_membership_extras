@@ -7,6 +7,13 @@
 class wf_me_cividiscount_ext_helper {
 
   /**
+   * wf_me_cividiscount_ext_helper constructor.
+   */
+  public function __construct() {
+    civicrm_initialize();
+  }
+
+  /**
    * Checks whether CiviDiscount extension is enabled or not.
    *
    * @return bool
