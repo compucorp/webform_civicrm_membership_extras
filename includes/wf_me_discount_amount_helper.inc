@@ -101,24 +101,26 @@ class wf_me_discount_amount_helper {
    * @return array
    */
   private function adjustLineItems($lineItems, $membershipNamesForDiscount, $discountCodeDetails) {
+    $lineItemsToDiscountCount = $this->getLineItemsToDiscountCount($lineItems, $membershipNamesForDiscount);
     $totalAmount = 0;
     foreach ($lineItems as $key => $lineItem) {
       $membershipID = $this->getLineItemMembershipIdForDiscount($membershipNamesForDiscount, $lineItem['label']);
       if ($membershipID) {
         $discountedAmount = 0;
         if ($discountCodeDetails['amount_type'] == self::WEBFORM_DISCOUNT_FIXED_AMOUNT) {
-          $discountedAmount = $this->getFixedDiscountedAmount($lineItem['line_total'], $discountCodeDetails['amount']);
+          $discountedAmount = $this->getFixedDiscountedAmount($lineItem['line_total'], $discountCodeDetails['amount'], $lineItemsToDiscountCount);
+          $amountDiscounted = $discountCodeDetails['amount'] / $lineItemsToDiscountCount;
         }
         elseif ($discountCodeDetails['amount_type'] == self::WEBFORM_DISCOUNT_PERCENTAGE_AMOUNT) {
           $discountedAmount = $this->getPercentageDiscountedAmount($lineItem['line_total'], $discountCodeDetails['amount']);
+          $amountDiscounted = $lineItem['line_total'] - $discountedAmount;
         }
 
-        $amountDiscounted = $lineItem['line_total'] - $discountedAmount;
         $totalAmount += $discountedAmount;
         $lineItems[$key]['unit_price'] = number_format((float) $discountedAmount, 2, '.', '');
         $lineItems[$key]['line_total'] = $discountedAmount;
         $lineItems[$key]['discount_applied'] = 1;
-        $lineItems[$key]['discounted_amount'] = number_format((float) $amountDiscounted, 2, '.', '');;
+        $lineItems[$key]['discounted_amount'] = number_format((float) $amountDiscounted, 2, '.', '');
         $lineItems[$key]['membership_type_id'] = $membershipID;
         $lineItems[$key]['original_amount'] = $lineItem['line_total'];
         $lineItems[$key]['discount_code_amount'] = $discountCodeDetails['amount'];
@@ -128,17 +130,31 @@ class wf_me_discount_amount_helper {
     return ['line_items' => $lineItems, 'total_amount' => $totalAmount];
   }
 
+  private function getLineItemsToDiscountCount($lineItems, $membershipNamesForDiscount) {
+    $lineItemsToDiscountCount = 0;
+    foreach ($lineItems as $key => $lineItem) {
+      $membershipID = $this->getLineItemMembershipIdForDiscount($membershipNamesForDiscount, $lineItem['label']);
+      if ($membershipID) {
+        $lineItemsToDiscountCount++;
+      }
+    }
+
+    return $lineItemsToDiscountCount;
+  }
+
   /**
    * Returns the amount for line total after discount has been deducted for fixed discount.
    *
    * @param mixed $lineItemTotal
    * @param mixed $discountCodeAmount
-   *
+   * @param mixed $lineItemsToDiscountCount
    * @return float|int
    */
-  private function getFixedDiscountedAmount($lineItemTotal, $discountCodeAmount) {
+  private function getFixedDiscountedAmount($lineItemTotal, $discountCodeAmount, $lineItemsToDiscountCount = 1) {
     $numberOfInstallments = $this->getNumberOfInstallments();
-    $fixedDiscountedAmount = $lineItemTotal - ($discountCodeAmount/$numberOfInstallments);
+    $discountAmountPerInstallment = $discountCodeAmount/$numberOfInstallments;
+    $discountAmountPerLineItem = $discountAmountPerInstallment/$lineItemsToDiscountCount;
+    $fixedDiscountedAmount = $lineItemTotal - $discountAmountPerLineItem;
 
     return $fixedDiscountedAmount > 0 ? $fixedDiscountedAmount : 0;
   }
