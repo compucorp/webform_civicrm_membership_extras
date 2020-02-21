@@ -151,9 +151,7 @@ class wf_me_discount_amount_helper {
    * @return float|int
    */
   private function getFixedDiscountedAmount($lineItemTotal, $discountCodeAmount, $lineItemsToDiscountCount = 1) {
-    $numberOfInstallments = $this->getNumberOfInstallments();
-    $discountAmountPerInstallment = $discountCodeAmount/$numberOfInstallments;
-    $discountAmountPerLineItem = $discountAmountPerInstallment/$lineItemsToDiscountCount;
+    $discountAmountPerLineItem = $discountCodeAmount/$lineItemsToDiscountCount;
     $fixedDiscountedAmount = $lineItemTotal - $discountAmountPerLineItem;
 
     return $fixedDiscountedAmount > 0 ? $fixedDiscountedAmount : 0;
@@ -193,33 +191,4 @@ class wf_me_discount_amount_helper {
     return FALSE;
   }
 
-  /**
-   * Gets the number of installments for the membership payments.
-   * This is useful in eventually calculating how the discount will
-   * be applied to the membership payment.
-   *
-   * @return int
-   */
-  public function getNumberOfInstallments() {
-    if (!$this->numberOfInstallments) {
-      $webformComponents = $this->formStorage['component_tree']['children'];
-      $installments_key = '';
-      $installments = '';
-      foreach ($webformComponents as $key => $value) {
-        if (strpos($value['form_key'], 'contribution_installments') !== FALSE) {
-          $installments_key = $key;
-          break;
-        }
-      }
-
-      if ($installments_key) {
-        $installments = $this->formStorage['submitted'][$installments_key];
-      }
-
-      $this->numberOfInstallments = $installments ? $installments : 1;
-    }
-
-
-    return $this->numberOfInstallments;
-  }
 }
