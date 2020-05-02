@@ -182,8 +182,12 @@ class wf_me_discount_amount_helper {
    * @return bool
    */
   private function getLineItemMembershipIdForDiscount($membershipNamesForDiscount, $lineItemLabel) {
+    // Webform civicrm module uses the (membership type name + ": " + contact name) formula as a label
+    // for any membership line item, so we split here the part before the ": " to get the membership type name
+    $membershipNameFromLineItemLabel = substr($lineItemLabel, 0, strpos($lineItemLabel, ': '));
+
     foreach ($membershipNamesForDiscount as $id => $name) {
-      if (strpos($lineItemLabel, $name) !== FALSE) {
+      if (strpos($name, $membershipNameFromLineItemLabel) !== FALSE) {
         return $id;
       }
     }
