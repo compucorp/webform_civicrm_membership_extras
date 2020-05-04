@@ -206,24 +206,18 @@ function _set_discount_code_status_in_session($status) {
 
 /**
  * Custom function to add webform discount context to session.
+ *
  * This is used in Webform_Discount_Civicrm_APIWrapper to alter line item price
  * when returning items that have already been discounted.
- * For contribution in installments, the discounted amount for the line item need
- * to be multiplied by the number of installments because in the tallyLineItems
- * function of webform_civicrm module, the amount is divided by the number of installments
- * so if we don't make sure the total amount is added for the line item here, the resulting
- * amount is going to be less than expected.
  *
  * @param array $form
  * @param array $form_state
  */
 function _set_discounted_membership_items_in_session($form, &$form_state) {
-  $wf_me_discount_amount_helper = new wf_me_discount_amount_helper($form_state['storage']);
-  $number_of_installments = $wf_me_discount_amount_helper->getNumberOfInstallments();
   $membership_type_added = array();
   foreach ($form_state['line_items'] as $item) {
     if (isset($item['membership_type_id'])) {
-      $membership_type_added[$item['membership_type_id']] = $item['unit_price'] * $number_of_installments;
+      $membership_type_added[$item['membership_type_id']] = $item['unit_price'];
     }
   }
 

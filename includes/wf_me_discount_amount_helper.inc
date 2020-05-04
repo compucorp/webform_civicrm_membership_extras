@@ -101,24 +101,26 @@ class wf_me_discount_amount_helper {
    * @return array
    */
   private function adjustLineItems($lineItems, $membershipNamesForDiscount, $discountCodeDetails) {
+    $lineItemsToDiscountCount = $this->getLineItemsToDiscountCount($lineItems, $membershipNamesForDiscount);
     $totalAmount = 0;
     foreach ($lineItems as $key => $lineItem) {
       $membershipID = $this->getLineItemMembershipIdForDiscount($membershipNamesForDiscount, $lineItem['label']);
       if ($membershipID) {
         $discountedAmount = 0;
         if ($discountCodeDetails['amount_type'] == self::WEBFORM_DISCOUNT_FIXED_AMOUNT) {
-          $discountedAmount = $this->getFixedDiscountedAmount($lineItem['line_total'], $discountCodeDetails['amount']);
+          $discountedAmount = $this->getFixedDiscountedAmount($lineItem['line_total'], $discountCodeDetails['amount'], $lineItemsToDiscountCount);
+          $amountDiscounted = $discountCodeDetails['amount'] / $lineItemsToDiscountCount;
         }
         elseif ($discountCodeDetails['amount_type'] == self::WEBFORM_DISCOUNT_PERCENTAGE_AMOUNT) {
           $discountedAmount = $this->getPercentageDiscountedAmount($lineItem['line_total'], $discountCodeDetails['amount']);
+          $amountDiscounted = $lineItem['line_total'] - $discountedAmount;
         }
 
-        $amountDiscounted = $lineItem['line_total'] - $discountedAmount;
         $totalAmount += $discountedAmount;
         $lineItems[$key]['unit_price'] = number_format((float) $discountedAmount, 2, '.', '');
         $lineItems[$key]['line_total'] = $discountedAmount;
         $lineItems[$key]['discount_applied'] = 1;
-        $lineItems[$key]['discounted_amount'] = number_format((float) $amountDiscounted, 2, '.', '');;
+        $lineItems[$key]['discounted_amount'] = number_format((float) $amountDiscounted, 2, '.', '');
         $lineItems[$key]['membership_type_id'] = $membershipID;
         $lineItems[$key]['original_amount'] = $lineItem['line_total'];
         $lineItems[$key]['discount_code_amount'] = $discountCodeDetails['amount'];
@@ -128,17 +130,29 @@ class wf_me_discount_amount_helper {
     return ['line_items' => $lineItems, 'total_amount' => $totalAmount];
   }
 
+  private function getLineItemsToDiscountCount($lineItems, $membershipNamesForDiscount) {
+    $lineItemsToDiscountCount = 0;
+    foreach ($lineItems as $key => $lineItem) {
+      $membershipID = $this->getLineItemMembershipIdForDiscount($membershipNamesForDiscount, $lineItem['label']);
+      if ($membershipID) {
+        $lineItemsToDiscountCount++;
+      }
+    }
+
+    return $lineItemsToDiscountCount;
+  }
+
   /**
    * Returns the amount for line total after discount has been deducted for fixed discount.
    *
    * @param mixed $lineItemTotal
    * @param mixed $discountCodeAmount
-   *
+   * @param mixed $lineItemsToDiscountCount
    * @return float|int
    */
-  private function getFixedDiscountedAmount($lineItemTotal, $discountCodeAmount) {
-    $numberOfInstallments = $this->getNumberOfInstallments();
-    $fixedDiscountedAmount = $lineItemTotal - ($discountCodeAmount/$numberOfInstallments);
+  private function getFixedDiscountedAmount($lineItemTotal, $discountCodeAmount, $lineItemsToDiscountCount = 1) {
+    $discountAmountPerLineItem = $discountCodeAmount/$lineItemsToDiscountCount;
+    $fixedDiscountedAmount = $lineItemTotal - $discountAmountPerLineItem;
 
     return $fixedDiscountedAmount > 0 ? $fixedDiscountedAmount : 0;
   }
@@ -168,8 +182,12 @@ class wf_me_discount_amount_helper {
    * @return bool
    */
   private function getLineItemMembershipIdForDiscount($membershipNamesForDiscount, $lineItemLabel) {
+    // Webform civicrm module uses the (membership type name + ": " + contact name) formula as a label
+    // for any membership line item, so we split here the part before the ": " to get the membership type name
+    $membershipNameFromLineItemLabel = substr($lineItemLabel, 0, strpos($lineItemLabel, ': '));
+
     foreach ($membershipNamesForDiscount as $id => $name) {
-      if (strpos($lineItemLabel, $name) !== FALSE) {
+      if (strpos($name, $membershipNameFromLineItemLabel) !== FALSE) {
         return $id;
       }
     }
@@ -177,33 +195,4 @@ class wf_me_discount_amount_helper {
     return FALSE;
   }
 
-  /**
-   * Gets the number of installments for the membership payments.
-   * This is useful in eventually calculating how the discount will
-   * be applied to the membership payment.
-   *
-   * @return int
-   */
-  public function getNumberOfInstallments() {
-    if (!$this->numberOfInstallments) {
-      $webformComponents = $this->formStorage['component_tree']['children'];
-      $installments_key = '';
-      $installments = '';
-      foreach ($webformComponents as $key => $value) {
-        if (strpos($value['form_key'], 'contribution_installments') !== FALSE) {
-          $installments_key = $key;
-          break;
-        }
-      }
-
-      if ($installments_key) {
-        $installments = $this->formStorage['submitted'][$installments_key];
-      }
-
-      $this->numberOfInstallments = $installments ? $installments : 1;
-    }
-
-
-    return $this->numberOfInstallments;
-  }
 }
