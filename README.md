@@ -3,7 +3,7 @@
 Support drupal module for [uk.co.compucorp.membershipextras](https://github.com/compucorp/uk.co.compucorp.membershipextras) extension that handle the creation of upfront contributions after submitting a civicrm webform.
 
 ## Do I need This Module?
-If you're using membership extras extension to manage memberships and payment plans, and you would like to allow your users to sign-up for those memberships via a webform, then yes! This module is required, as it will add the necessary form controls to let visitors to your site to choose the number of installments in which they would like to pay for the membership and handle the creation of those contributions and associate them to the payment plan.
+If you're using Membership Extras extension to manage memberships and payment plans, and you would like to allow your users to sign-up for those memberships via a webform, then yes! This module is required, as it will add the necessary form controls to let visitors to your site to choose the number of installments in which they would like to pay for the membership and handle the creation of those contributions and associate them to the payment plan.
 
 ## Requirements
 This module works in tandem with membership extras CiviCRM extension. Aside from that, you will also need to install a patched version of the [CiviCRM webforms module v7.x-4.28](https://github.com/compucorp/webform_civicrm/releases/tag/7.x-4.28-patch1) which has several features and fixes done in order to support the creation of payment plans and memberships via a webform:
