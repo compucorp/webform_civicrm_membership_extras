@@ -15,7 +15,7 @@ class wf_me_discount_settings {
    */
   public function save($nid, $discountStatus) {
     $query = db_select('webform_discount_settings')
-      ->fields('nid')
+      ->fields('webform_discount_settings', ['nid'])
       ->condition('nid', $nid);
     $numberOfRows = $query->countQuery()->execute()->fetchField();
 
