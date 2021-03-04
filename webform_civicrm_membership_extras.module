@@ -21,6 +21,7 @@ function webform_civicrm_membership_extras_webform_submission_insert($node, $sub
 
     CRM_MembershipExtras_WebformAPI_RecurringContributionLineItemCreator::create($contributionRecurId);
     CRM_MembershipExtras_WebformAPI_UpfrontContributionsCreator::create($contributionRecurId);
+    CRM_MembershipExtras_WebformAPI_PaymentPlanActivation::activateOnlyLast($contributionRecurId);
   }
 
   $discountCodeDetails = _membershipextras_getSubmittedDiscountCodeDetails($node, $submission);
