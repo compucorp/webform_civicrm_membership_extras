@@ -45,7 +45,14 @@ function webform_civicrm_membership_extras_civicrm_apiWrappers(&$wrappers, $apiR
 
   // Add custom civicrm api wrapper to alter line item price
   $wrappers[] = new wf_me_discount_civicrm_apiwrapper();
-  $wrappers[] = new wf_me_prorated_billing_apiwrapper();
+
+  // The deployment failed because the following class wasn't loaded.
+  // I think it is related to the cache wasn't cleared and hence no re-read
+  // for the info file to load the following file.
+  if (class_exists('wf_me_prorated_billing_apiwrapper')) {
+    $wrappers[] = new wf_me_prorated_billing_apiwrapper();
+  }
+
 }
 
 
