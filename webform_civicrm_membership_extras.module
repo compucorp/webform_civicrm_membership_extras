@@ -935,8 +935,11 @@ function _webform_civicrm_membership_extras_update_the_prorated_membership_items
     foreach($line_items as $line_item_key => $item) {
       if (isset($membershipNamesAndKeysMap[$item['element']]) && $membershipNamesAndKeysMap[$item['element']] === $key) {
         $line_items[$line_item_key]['unit_price'] = $instalmentLineItems[0]->getUnitPrice();
+        $line_items[$line_item_key]['unit_price'] = number_format( $line_items[$line_item_key]['unit_price'], 2, '.', '');
         $line_items[$line_item_key]['line_total'] = $instalmentLineItems[0]->getTotalAmount() - $instalmentLineItems[0]->getTaxAmount();
+        $line_items[$line_item_key]['line_total'] = (float) number_format( $line_items[$line_item_key]['line_total'], 2, '.', '');
         $line_items[$line_item_key]['tax_amount'] = $instalmentLineItems[0]->getTaxAmount();
+        $line_items[$line_item_key]['tax_amount'] = (float) number_format( $line_items[$line_item_key]['tax_amount'], 2, '.', '');
         $line_items[$line_item_key]['membership_type_id'] = $membershipTypes[$key]->id;
       }
     }
