@@ -772,14 +772,22 @@ function _webform_civicrm_membership_extras_get_membership_types(&$form, &$form_
   foreach ($components as $key => $component) {
     // use array for membership_type ids because checkbox input allows mult-value.
     $membership_type_ids = [];
+
+    // First, try to get the $membership_type_ids from the input array.
     foreach($form_state['input']['submitted'] as $fieldset) {
       if (!empty($fieldset[$component['form_key']])) {
         $membership_type_ids = $fieldset[$component['form_key']];
-        if (!is_array($membership_type_ids)) {
-          $membership_type_ids = [$membership_type_ids];
-        }
         break;
       }
+    }
+
+    // Second, try to get the $membership_type_ids from the storage array if it
+    // was populated, which means this is another page or it is an ajax request
+    // for applying the discoumt code.
+    $membership_type_ids = $form_state['storage']['submitted'][$key] ?? $membership_type_ids;
+
+    if (!is_array($membership_type_ids)) {
+      $membership_type_ids = [$membership_type_ids];
     }
 
     foreach($membership_type_ids as $membership_type_id) {

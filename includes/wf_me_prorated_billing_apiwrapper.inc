@@ -19,6 +19,13 @@ class wf_me_prorated_billing_apiwrapper implements API_Wrapper {
    * @return array
    */
   public function toApiOutput($apiRequest, $result) {
+    // if a 'webform_discount_submit' context is present, skip altering the
+    // result because the 'wf_me_discount_civicrm_apiwrapper' class will alter
+    // it with discounted prorated prices.
+    if (isset($_SESSION['webform_discount_submit'])) {
+      return $result;
+    }
+
     if ($apiRequest['entity'] == 'MembershipType' && $apiRequest['action'] == 'get') {
       // is 'webform_prorated_billing:is_enabled' key is true, alter api results to have discounted prices
       if (!empty($_SESSION['webform_prorated_billing']['is_enabled'])) {
@@ -27,8 +34,6 @@ class wf_me_prorated_billing_apiwrapper implements API_Wrapper {
           $result['values'][$membership_type_id]['minimum_fee'] = $price;
         }
       }
-      // unset context so from next call discount wont be set in results
-      unset($_SESSION['webform_prorated_billing']);
     }
 
     return $result;
