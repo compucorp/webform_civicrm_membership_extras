@@ -22,7 +22,7 @@ class wf_me_prorated_billing_apiwrapper implements API_Wrapper {
     // if a 'webform_discount_submit' context is present, skip altering the
     // result because the 'wf_me_discount_civicrm_apiwrapper' class will alter
     // it with discounted prorated prices.
-    if (isset($_SESSION['webform_discount_submit'])) {
+    if (!empty($_SESSION['webform_discount_submit']['membership_types'])) {
       return $result;
     }
 
