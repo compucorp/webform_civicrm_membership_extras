@@ -733,6 +733,7 @@ function _webform_civicrm_membership_extras_prorated_billing_form_alter_handler(
     foreach ($validate_callbacks as $validate_callback) {
       if ($validate_callback == 'wf_crm_validate') {
         $form['#validate'][] = '_webform_civicrm_membership_extras_enable_prorated_billing';
+        $form['#validate'][] = '_webform_civicrm_membership_extras_set_start_date_of_prorated_memberships';
         $form['#validate'][] = $validate_callback;
         $form['#validate'][] = '_webform_civicrm_membership_extras_disable_prorated_billing';
         $form['#validate'][] = '_webform_civicrm_membership_extras_clear_prorated_billing_related_data';
@@ -897,9 +898,9 @@ function _webform_civicrm_membership_extras_get_membership_dates(&$form, &$form_
       $dates['join_date']
     );
 
-    // Sets the start date to NULL to use today as the start date if the user didn't fill it.
+    // Sets the start date to today if the user didn't fill it.
     if (!$dates['start_date']) {
-      $membership_dates_added[$key]['start_date'] = NULL;
+      $membership_dates_added[$key]['start_date'] = date('Ymd');
     }
   }
 
@@ -941,6 +942,9 @@ function _webform_civicrm_membership_extras_update_the_prorated_membership_items
         $line_items[$line_item_key]['tax_amount'] = $instalmentLineItems[0]->getTaxAmount();
         $line_items[$line_item_key]['tax_amount'] = (float) number_format( $line_items[$line_item_key]['tax_amount'], 2, '.', '');
         $line_items[$line_item_key]['membership_type_id'] = $membershipTypes[$key]->id;
+
+        $prorated_start_date = DateTime::createFromFormat('Ymd', $membershipDates[$key]['start_date']);
+        $line_items[$line_item_key]['prorated_start_date'] = $prorated_start_date->format('Y-m-d');
       }
     }
   }
@@ -1007,13 +1011,16 @@ function _webform_civicrm_membership_extras_is_prorated_billing_enabled($form, &
  */
 function _webform_civicrm_membership_extras_set_prorated_membership_items_in_session($form, &$form_state) {
   $membership_type_added = array();
+  $membership_start_date_added = array();
   foreach ($form_state['civicrm']['line_items'] as $item) {
     if (isset($item['membership_type_id'])) {
       $membership_type_added[$item['membership_type_id']] = $item['unit_price'];
+      $membership_start_date_added[$item['membership_type_id']] = $item['prorated_start_date'];
     }
   }
 
   $_SESSION['webform_prorated_billing']['membership_types'] = $membership_type_added;
+  $_SESSION['webform_prorated_billing']['membership_start_dates'] = $membership_start_date_added;
 }
 
 /**
@@ -1025,8 +1032,51 @@ function _webform_civicrm_membership_extras_set_prorated_membership_items_in_ses
  * @param array $form
  * @param array $form_state
  */
-function _webform_civicrm_membership_extras_enable_prorated_billing($line_items) {
+function _webform_civicrm_membership_extras_enable_prorated_billing(&$form, &$form_state) {
   $_SESSION['webform_prorated_billing']['is_enabled'] = TRUE;
+}
+
+/**
+ * Sets start date of prorated memberships.
+ *
+ * Updates webform components && submitted values to have the start date of
+ * each prorated membership only during the last submission.
+ *
+ * @param array $form
+ * @param array $form_state
+ */
+function _webform_civicrm_membership_extras_set_start_date_of_prorated_memberships(&$form, &$form_state) {
+  $components = _webform_civicrm_membership_extras_get_components_by_part_of_form_key($form, '_membership_membership_type_id');
+  foreach ($components as $key => $component) {
+    // Checks if the membership is selected.
+    $component_value = $form_state['storage']['submitted'][$key] ?? [];
+    if (is_array($component_value)) {
+        // Checkboxes return array of values.
+        $component_value = $component_value[0] ?? '';
+    }
+    if (empty($component_value)) {
+      continue;
+    }
+
+    // Checks if there is a start date component.
+    $form_key = str_replace('_membership_membership_type_id', '_membership_start_date', $component['form_key']);
+    $is_start_date_component_exists = !empty(_webform_civicrm_membership_extras_get_components_by_part_of_form_key($form, $form_key));
+    if ($is_start_date_component_exists) {
+      continue;
+    }
+
+    // Creates the webform component(field).
+    $cid = max(array_keys($form['#node']->webform['components'])) + 1;
+    $form['#node']->webform['components'][$cid] = [
+      'nid' => $form['#node']->webform['nid'],
+      'cid' => "$cid",
+      'form_key' => $form_key,
+    ];
+
+    // Sets the value of the newly created webform component.
+    $prorated_start_date = $_SESSION['webform_prorated_billing']['membership_start_dates'][$component_value];
+    $form_state['storage']['submitted'][$cid] = $prorated_start_date;
+  }
 }
 
 /**
@@ -1038,7 +1088,7 @@ function _webform_civicrm_membership_extras_enable_prorated_billing($line_items)
  * @param array $form
  * @param array $form_state
  */
-function _webform_civicrm_membership_extras_disable_prorated_billing($line_items) {
+function _webform_civicrm_membership_extras_disable_prorated_billing($form, &$form_state) {
   $_SESSION['webform_prorated_billing']['is_enabled'] = FALSE;
 }
 
