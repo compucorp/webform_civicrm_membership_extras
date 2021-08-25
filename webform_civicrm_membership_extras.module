@@ -23,6 +23,7 @@ function webform_civicrm_membership_extras_webform_submission_insert($node, $sub
     module_invoke_all('webformmembershipextras_preCreatingUpfrontContributions', $node, $contributionRecurId);
     CRM_MembershipExtras_WebformAPI_UpfrontContributionsCreator::create($contributionRecurId);
     CRM_MembershipExtras_WebformAPI_PaymentPlanActivation::activateOnlyLast($contributionRecurId);
+    CRM_MembershipExtras_WebformAPI_PaymentPlanNextContributionDateUpdater::update($contributionRecurId);
   }
 
   $discountCodeDetails = _membershipextras_getSubmittedDiscountCodeDetails($node, $submission);
