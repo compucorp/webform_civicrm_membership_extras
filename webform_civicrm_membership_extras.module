@@ -65,10 +65,63 @@ function webform_civicrm_membership_extras_form_alter(&$form, &$form_state, $for
   }
 
   if (strpos($form_id, 'webform_client_form_') !== FALSE) {
+    _webform_civicrm_membership_extras_set_number_of_terms_for_manually_entered_dates_memberships($form, $form_state);
     wf_me_webform_client_form_alter_handler($form, $form_state, $form_id);
   }
 
   _webform_civicrm_membership_extras_prorated_billing_form_alter_handler($form, $form_state, $form_id);
+}
+
+/**
+ * Sets the number of terms to 1 for memberships with manually entered dates.
+ *
+ * First, get the list of manually entered dates memberships. The function
+ * _webform_civicrm_membership_extras_get_membership_dates_from_inputs_by_name
+ * returns a list of the submitted start dates if there is any
+ *   [ 'civicrm_1_membership_1' => '2021-9-8',
+ *     'civicrm_1_membership_2' => '2021-9-8' ]
+ * Then we convert it to an array of membership numbers
+ *   [ "1" , "2" ]
+ *
+ * Second, Loop over the membership data stored in webform_civicrm and sets the
+ * num_terms to "1" if the membership has a manually entered dates.
+ *
+ * $form['#node']->webform_civicrm['data']['membership']
+ * [
+ *   "1" => [
+ *     "number_of_membership" => "3"
+ *     "membership" => [
+ *       ['status_id' => '1', 'num_terms' => 0, 'auto_renew' => '1'],
+ *       ['status_id' => '1', 'num_terms' => 0, 'auto_renew' => '1'],
+ *       ['status_id' => '1', 'num_terms' => "1", 'auto_renew' => '1'],
+ *     ],
+ *   ],
+ *   "2" => [ "number_of_membership" => "0" ]
+ * ]
+ *
+ * The above sample data for a form that has three memberships configured and
+ * two of them has the option manually entered dates for number of terms.
+ *
+ * @param $form
+ * @param $form_state
+ */
+function _webform_civicrm_membership_extras_set_number_of_terms_for_manually_entered_dates_memberships($form, $form_state): void {
+  $membership_start_dates = _webform_civicrm_membership_extras_get_membership_dates_from_inputs_by_name($form, $form_state, 'start_date');
+  $memberships_with_manually_entered_dates = array_map(function ($item) {
+    $parts = explode('_membership_', $item);
+    return array_pop($parts);
+  }, array_keys($membership_start_dates));
+
+  $membership_sets = &$form['#node']->webform_civicrm['data']['membership'];
+  foreach ($membership_sets as $memberships_key => $membership_set) {
+    if (intval($membership_set['number_of_membership']) > 0) {
+      foreach ($membership_set['membership'] as $membership_number => $membership) {
+        if (in_array($membership_number, $memberships_with_manually_entered_dates)) {
+          $membership_sets[$memberships_key]['membership'][$membership_number]['num_terms'] = "1";
+        }
+      }
+    }
+  }
 }
 
 /**
