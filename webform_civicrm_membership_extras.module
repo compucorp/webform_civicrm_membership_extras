@@ -65,7 +65,6 @@ function webform_civicrm_membership_extras_form_alter(&$form, &$form_state, $for
   }
 
   if (strpos($form_id, 'webform_client_form_') !== FALSE) {
-    _webform_civicrm_membership_extras_set_number_of_terms_for_manually_entered_dates_memberships($form, $form_state);
     wf_me_webform_client_form_alter_handler($form, $form_state, $form_id);
   }
 
@@ -757,6 +756,8 @@ function _webform_civicrm_membership_extras_prorated_billing_form_alter_handler(
     return;
   }
 
+  _webform_civicrm_membership_extras_set_number_of_terms_for_manually_entered_dates_memberships($form, $form_state);
+
   $form['#validate'][] = '_webform_civicrm_membership_extras_update_the_prorated_membership_items';
   $form['#validate'][] = '_webform_civicrm_membership_extras_set_prorated_membership_items_in_session';
 
@@ -822,22 +823,29 @@ function _webform_civicrm_membership_extras_get_instalment_amount_calculator($me
  * @param array $form_state
  */
 function _webform_civicrm_membership_extras_get_membership_types(&$form, &$form_state) {
+  if (!$form_state['input']) {
+    return [];
+  }
+
   $components = _webform_civicrm_membership_extras_get_components_by_part_of_form_key($form, '_membership_membership_type_id');
   foreach ($components as $key => $component) {
     // use array for membership_type ids because checkbox input allows mult-value.
     $membership_type_ids = [];
 
     // First, try to get the $membership_type_ids from the input array.
-    foreach($form_state['input']['submitted'] as $fieldset) {
-      if (!empty($fieldset[$component['form_key']])) {
-        $membership_type_ids = $fieldset[$component['form_key']];
+    $submittedInputsIterator = new RecursiveIteratorIterator(
+      new RecursiveArrayIterator($form_state['input']['submitted']),
+      RecursiveIteratorIterator::SELF_FIRST);
+    foreach($submittedInputsIterator as $fieldName => $field) {
+      if ($fieldName === $component['form_key']) {
+        $membership_type_ids = $field;
         break;
       }
     }
 
     // Second, try to get the $membership_type_ids from the storage array if it
-    // was populated, which means this is another page or it is an ajax request
-    // for applying the discoumt code.
+    // was populated, which means this is another page, or it is an ajax request
+    // for applying the discount code.
     $membership_type_ids = $form_state['storage']['submitted'][$key] ?? $membership_type_ids;
 
     if (!is_array($membership_type_ids)) {
@@ -856,24 +864,57 @@ function _webform_civicrm_membership_extras_get_membership_types(&$form, &$form_
 }
 
 /**
- * Gets the membership dates from inputs.
+ * Gets the membership dates from the nested inputs array.
+ *
+ * It uses RecursiveIteratorIterator to loop through the nested array. Drupal
+ * webform allows the user to add fieldset to group multiple fields together
+ * which makes the submitted array structure nested.
+ * $form_state['input']['submitted'] = [
+ *   'civicrm_1_contact_1_fieldset_fieldset' => [
+ *     'civicrm_1_contact_1_contact_first_name' => 'Bruce',
+ *     'civicrm_1_contact_1_contact_last_name' => 'Wayne',
+ *     'civicrm_1_contact_1_contact_last_name' => 'Wayne',
+ *     'main_membership' => [
+ *       'civicrm_1_membership_1_membership_join_date' => [
+ *         'month' => '9',
+ *         'day' => '1',
+ *         'year' => '2021',
+         ]
+ *       'civicrm_1_membership_1_membership_start_date' => [..]
+ *       'civicrm_1_membership_1_membership_end_date' => [..]
+ *     ]
+ *     'civicrm_1_membership_2_membership_join_date' => [..]
+ *     'civicrm_1_membership_2_membership_start_date' => [..]
+ *     'civicrm_1_membership_2_membership_end_date' => [..]
+ *   ]
+ *   'civicrm_2_contact_1_fieldset_fieldset' => [..]
+ * ]
  *
  * @param array $form
  * @param array $form_state
  * @param string $date_name
  */
 function _webform_civicrm_membership_extras_get_membership_dates_from_inputs_by_name(&$form, &$form_state, $date_name) {
+  if (!$form_state['input']) {
+    return [];
+  }
+
   $dates = [];
   $part_of_form_key = "_membership_$date_name";
   $components = _webform_civicrm_membership_extras_get_components_by_part_of_form_key($form, $part_of_form_key);
+  $submittedInputsIterator = new RecursiveIteratorIterator(
+    new RecursiveArrayIterator($form_state['input']['submitted']),
+    RecursiveIteratorIterator::SELF_FIRST);
   foreach ($components as $key => $component) {
     $date = 0;
-    foreach($form_state['input']['submitted'] as $fieldset) {
-      $day = $fieldset[$component['form_key']]['day'] ?? 0;
-      $month = $fieldset[$component['form_key']]['month'] ?? 0;
-      $year = $fieldset[$component['form_key']]['year'] ?? 0;
-      if ($day && $month && $year) {
-        $date = intval($year) . "-" . intval($month) . "-" . intval($day);
+    foreach($submittedInputsIterator as $fieldName => $field) {
+      if ($fieldName === $component['form_key']) {
+        $day = $field['day'] ?? 0;
+        $month = $field['month'] ?? 0;
+        $year = $field['year'] ?? 0;
+        if ($day && $month && $year) {
+         $date = intval($year) . "-" . intval($month) . "-" . intval($day);
+        }
       }
     }
 
