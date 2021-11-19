@@ -826,10 +826,13 @@ function _webform_civicrm_membership_extras_get_membership_types(&$form, &$form_
 
   $components = _webform_civicrm_membership_extras_get_components_by_part_of_form_key($form, '_membership_membership_type_id');
   foreach ($components as $key => $component) {
-    // use array for membership_type ids because checkbox input allows mult-value.
-    $membership_type_ids = [];
+    // First, try to get the $membership_type_ids from the storage array if it
+    // was populated, which means this is another page, or it is an ajax request
+    // for applying the discount code. We use an array for membership_type ids
+    // because checkbox input allows mult-value.
+    $membership_type_ids = $form_state['storage']['submitted'][$key] ?? [];
 
-    // First, try to get the $membership_type_ids from the input array.
+    // Second, try to get the $membership_type_ids from the input array.
     $submitted = $form_state['values']['submitted'] ?? [];
     $submittedInputsIterator = new RecursiveIteratorIterator(
       new RecursiveArrayIterator($submitted),
@@ -840,11 +843,6 @@ function _webform_civicrm_membership_extras_get_membership_types(&$form, &$form_
         break;
       }
     }
-
-    // Second, try to get the $membership_type_ids from the storage array if it
-    // was populated, which means this is another page, or it is an ajax request
-    // for applying the discount code.
-    $membership_type_ids = $form_state['storage']['submitted'][$key] ?? $membership_type_ids;
 
     if (!is_array($membership_type_ids)) {
       $membership_type_ids = [$membership_type_ids];
