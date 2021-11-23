@@ -823,9 +823,6 @@ function _webform_civicrm_membership_extras_get_instalment_amount_calculator($me
  */
 function _webform_civicrm_membership_extras_get_membership_types(&$form, &$form_state) {
   $membership_type_added = [];
-  if (!$form_state['input']) {
-    return $membership_type_added;
-  }
 
   $components = _webform_civicrm_membership_extras_get_components_by_part_of_form_key($form, '_membership_membership_type_id');
   foreach ($components as $key => $component) {
@@ -833,8 +830,9 @@ function _webform_civicrm_membership_extras_get_membership_types(&$form, &$form_
     $membership_type_ids = [];
 
     // First, try to get the $membership_type_ids from the input array.
+    $submitted = $form_state['values']['submitted'] ?? [];
     $submittedInputsIterator = new RecursiveIteratorIterator(
-      new RecursiveArrayIterator($form_state['input']['submitted']),
+      new RecursiveArrayIterator($submitted),
       RecursiveIteratorIterator::SELF_FIRST);
     foreach($submittedInputsIterator as $fieldName => $field) {
       if ($fieldName === $component['form_key']) {
