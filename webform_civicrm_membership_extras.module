@@ -23,6 +23,7 @@ function webform_civicrm_membership_extras_webform_submission_insert($node, $sub
     module_invoke_all('webformmembershipextras_preCreatingUpfrontContributions', $node, $contributionRecurId);
     CRM_MembershipExtras_WebformAPI_UpfrontContributionsCreator::create($contributionRecurId);
     CRM_MembershipExtras_WebformAPI_PaymentPlanActivation::activateOnlyLast($contributionRecurId);
+    CRM_MembershipExtras_WebformAPI_PaymentPlanNextContributionDateUpdater::update($contributionRecurId);
   }
 
   $discountCodeDetails = _membershipextras_getSubmittedDiscountCodeDetails($node, $submission);
@@ -751,8 +752,7 @@ function _webform_civicrm_membership_extras_prorated_billing_form_alter_handler(
     return;
   }
 
-  $membershipTypes = _webform_civicrm_membership_extras_get_membership_types($form, $form_state);
-  if (!_webform_civicrm_membership_extras_is_prorated_billing_enabled($form, $form_state, $membershipTypes)) {
+  if (!_webform_civicrm_membership_extras_is_prorated_billing_enabled($form, $form_state)) {
     return;
   }
 
@@ -823,18 +823,20 @@ function _webform_civicrm_membership_extras_get_instalment_amount_calculator($me
  * @param array $form_state
  */
 function _webform_civicrm_membership_extras_get_membership_types(&$form, &$form_state) {
-  if (!$form_state['input']) {
-    return [];
-  }
+  $membership_type_added = [];
 
   $components = _webform_civicrm_membership_extras_get_components_by_part_of_form_key($form, '_membership_membership_type_id');
   foreach ($components as $key => $component) {
-    // use array for membership_type ids because checkbox input allows mult-value.
-    $membership_type_ids = [];
+    // First, try to get the $membership_type_ids from the storage array if it
+    // was populated, which means this is another page, or it is an ajax request
+    // for applying the discount code. We use an array for membership_type ids
+    // because checkbox input allows mult-value.
+    $membership_type_ids = $form_state['storage']['submitted'][$key] ?? [];
 
-    // First, try to get the $membership_type_ids from the input array.
+    // Second, try to get the $membership_type_ids from the input array.
+    $submitted = $form_state['values']['submitted'] ?? [];
     $submittedInputsIterator = new RecursiveIteratorIterator(
-      new RecursiveArrayIterator($form_state['input']['submitted']),
+      new RecursiveArrayIterator($submitted),
       RecursiveIteratorIterator::SELF_FIRST);
     foreach($submittedInputsIterator as $fieldName => $field) {
       if ($fieldName === $component['form_key']) {
@@ -842,11 +844,6 @@ function _webform_civicrm_membership_extras_get_membership_types(&$form, &$form_
         break;
       }
     }
-
-    // Second, try to get the $membership_type_ids from the storage array if it
-    // was populated, which means this is another page, or it is an ajax request
-    // for applying the discount code.
-    $membership_type_ids = $form_state['storage']['submitted'][$key] ?? $membership_type_ids;
 
     if (!is_array($membership_type_ids)) {
       $membership_type_ids = [$membership_type_ids];
@@ -1002,6 +999,26 @@ function _webform_civicrm_membership_extras_get_membership_dates(&$form, &$form_
 }
 
 /**
+ * Checks if the membership types are fixed.
+ *
+ * @param array $membershipTypes
+ */
+function _webform_civicrm_membership_extras_are_membership_types_fixed(array $membershipTypes) {
+  $areMembershipTypesFixed = TRUE;
+  foreach($membershipTypes as $membershipType) {
+    if($membershipType->period_type !== 'fixed') {
+      $areMembershipTypesFixed = FALSE;
+      break;
+    }
+  }
+  if (count($membershipTypes) < 1 || !$areMembershipTypesFixed) {
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
  * Calculates the prorated membership items.
  *
  * @param array $form
@@ -1009,6 +1026,9 @@ function _webform_civicrm_membership_extras_get_membership_dates(&$form, &$form_
  */
 function _webform_civicrm_membership_extras_update_the_prorated_membership_items($form, &$form_state) {
   $membershipTypes = _webform_civicrm_membership_extras_get_membership_types($form, $form_state);
+  if (!_webform_civicrm_membership_extras_are_membership_types_fixed($membershipTypes)) {
+    return FALSE;
+  }
 
   $components = $form['#node']->webform['components'];
   $membershipNamesAndKeysMap = [];
@@ -1049,22 +1069,10 @@ function _webform_civicrm_membership_extras_update_the_prorated_membership_items
  *
  * @param array $form
  * @param array $form_state
- * @param array $membershipTypes
  *
  * @return boolean
  */
-function _webform_civicrm_membership_extras_is_prorated_billing_enabled($form, &$form_state, $membershipTypes) {
-  $areMembershipTypesFixed = TRUE;
-  foreach($membershipTypes as $membershipType) {
-    if($membershipType->period_type !== 'fixed') {
-      $areMembershipTypesFixed = FALSE;
-      break;
-    }
-  }
-  if (count($membershipTypes) < 1 || !$areMembershipTypesFixed) {
-    return FALSE;
-  }
-
+function _webform_civicrm_membership_extras_is_prorated_billing_enabled($form, &$form_state) {
   $membershipSettings = $form['#node']->webform_civicrm['data']['membership'] ?? [];
   $isNumberOfTermsIsOne = TRUE;
   foreach($membershipSettings as $settings) {
