@@ -173,6 +173,12 @@ function wf_me_webform_client_form_alter_handler(&$form, &$form_state, $form_id)
   elseif (isset($form['submitted']['webform_discount_code_field'])) {
     _set_discount_code_status_in_session(FALSE);
     $fields = $form['submitted'];
+    $form['submitted']['webform_discount_code_all_fields_wraper'] = array(
+      '#type' => 'container',
+      '#weight' => $fields['webform_discount_code_field']['#weight'],
+      '#prefix' => '<div id="webform_discount_code_all_fields_wrapper">',
+      '#suffix' => '</br></div>',
+    );
     $form['submitted']['webform_discount_code_message_wrapper'] = array(
       '#type' => 'container',
       '#weight' => $fields['webform_discount_code_field']['#weight'],
@@ -233,6 +239,10 @@ function wf_me_webform_client_form_alter_handler(&$form, &$form_state, $form_id)
         $form['#validate'][] = $vc;
       }
     }
+
+    drupal_add_js(
+      drupal_get_path('module', 'webform_civicrm_membership_extras') . '/js/webform_civicrm_membership_extras.js'
+    );
   }
 
   if ($is_discount_enabled) {
