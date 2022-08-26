@@ -902,7 +902,7 @@ function _webform_civicrm_membership_extras_get_membership_types(&$form, &$form_
  * @param string $date_name
  */
 function _webform_civicrm_membership_extras_get_membership_dates_from_inputs_by_name(&$form, &$form_state, $date_name) {
-  if (!$form_state['input']) {
+  if (!$form_state['input'] || empty($form_state['input']['submitted'])) {
     return [];
   }
 
