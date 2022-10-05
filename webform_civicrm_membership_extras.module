@@ -1035,6 +1035,7 @@ function _webform_civicrm_membership_extras_are_membership_types_fixed(array $me
  * @param array $form_state
  */
 function _webform_civicrm_membership_extras_update_the_prorated_membership_items($form, &$form_state) {
+  civicrm_initialize();
   $membershipTypes = _webform_civicrm_membership_extras_get_membership_types($form, $form_state);
   if (!_webform_civicrm_membership_extras_are_membership_types_fixed($membershipTypes)) {
     return FALSE;
