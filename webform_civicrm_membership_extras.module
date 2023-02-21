@@ -471,9 +471,9 @@ function _webform_discount_code_field_ajax_callback($form, &$form_state) {
     $total_amount = 0;
     $markup = '';
     foreach ($form_state['line_items'] as $key => $value) {
-      $total_amount += $value['unit_price'];
+      $total_amount += ($value['unit_price'] + $value['tax_amount']);
       if ($value['discount_applied']) {
-        $items_amount_updated[$value['element']] = $value['unit_price'];
+        $items_amount_updated[$value['element']] = ($value['unit_price'] + $value['tax_amount']);
         $membership_types = explode(':', $value['label']);
         $discount_prefix = 'Your ' . $membership_types[0] . ' membership with original price of &pound;' .
           $value['original_amount'] . ' had a ';

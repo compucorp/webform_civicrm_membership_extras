@@ -116,11 +116,19 @@ class wf_me_discount_amount_helper {
           $amountDiscounted = $lineItem['line_total'] - $discountedAmount;
         }
 
+        // do we have tax ?
+        $taxAmount = 0;
+        if ($discountCodeDetails['amount_type'] == self::WEBFORM_DISCOUNT_PERCENTAGE_AMOUNT) {
+          $taxAmount = $this->getPercentageDiscountedAmount($lineItem['tax_amount'], $discountCodeDetails['amount']);
+          $amountDiscountedTax = $lineItem['tax_amount'] - $taxAmount;
+        }
+
         $totalAmount += $discountedAmount;
         $lineItems[$key]['unit_price'] = number_format((float) $discountedAmount, 2, '.', '');
-        $lineItems[$key]['line_total'] = $discountedAmount;
+        $lineItems[$key]['tax_amount'] = number_format((float) $taxAmount, 2, '.', '');
+        $lineItems[$key]['line_total'] = $discountedAmount + $taxAmount;
         $lineItems[$key]['discount_applied'] = 1;
-        $lineItems[$key]['discounted_amount'] = number_format((float) $amountDiscounted, 2, '.', '');
+        $lineItems[$key]['discounted_amount'] = number_format((float) ($amountDiscounted + $amountDiscountedTax), 2, '.', '');
         $lineItems[$key]['membership_type_id'] = $membershipID;
         $lineItems[$key]['original_amount'] = $lineItem['line_total'];
         $lineItems[$key]['discount_code_amount'] = $discountCodeDetails['amount'];
