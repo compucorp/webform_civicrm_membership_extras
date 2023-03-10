@@ -194,6 +194,11 @@ class wf_me_discount_amount_helper {
     // for any membership line item, so we split here the part before the ": " to get the membership type name
     $membershipNameFromLineItemLabel = substr($lineItemLabel, 0, strpos($lineItemLabel, ': '));
 
+    // if membership title is blank then return FALSE
+    if (!strlen($membershipNameFromLineItemLabel)) {
+      return FALSE;
+    }
+
     foreach ($membershipNamesForDiscount as $id => $name) {
       if (strpos($name, $membershipNameFromLineItemLabel) !== FALSE) {
         return $id;
