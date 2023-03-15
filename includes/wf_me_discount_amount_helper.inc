@@ -132,6 +132,8 @@ class wf_me_discount_amount_helper {
         $lineItems[$key]['membership_type_id'] = $membershipID;
         $lineItems[$key]['original_amount'] = $lineItem['line_total'];
         $lineItems[$key]['discount_code_amount'] = $discountCodeDetails['amount'];
+      } else {
+        $totalAmount += $lineItem['line_total'];
       }
     }
 
