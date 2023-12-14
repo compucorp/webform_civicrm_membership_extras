@@ -846,9 +846,12 @@ function _webform_civicrm_membership_extras_get_membership_types(&$form, &$form_
  * @param array $form
  * @param array $form_state
  * @param string $date_name
+ * @param string $form_data_key
+ *  Either 'input' to check if the date exists within the submitted form values,
+ *  or 'values' to check if the date exists within the form default values.
  */
-function _webform_civicrm_membership_extras_get_membership_dates_from_inputs_by_name(&$form, &$form_state, $date_name) {
-  if (!$form_state['input'] || empty($form_state['input']['submitted'])) {
+function _webform_civicrm_membership_extras_get_membership_dates_from_form_by_name(&$form, &$form_state, $date_name, $form_data_key = 'input') {
+  if (!$form_state[$form_data_key] || empty($form_state[$form_data_key]['submitted'])) {
     return [];
   }
 
@@ -856,7 +859,7 @@ function _webform_civicrm_membership_extras_get_membership_dates_from_inputs_by_
   $part_of_form_key = "_membership_$date_name";
   $components = _webform_civicrm_membership_extras_get_components_by_part_of_form_key($form, $part_of_form_key);
   $submittedInputsIterator = new RecursiveIteratorIterator(
-    new RecursiveArrayIterator($form_state['input']['submitted']),
+    new RecursiveArrayIterator($form_state[$form_data_key]['submitted']),
     RecursiveIteratorIterator::SELF_FIRST);
   foreach ($components as $key => $component) {
     $date = 0;
@@ -865,8 +868,15 @@ function _webform_civicrm_membership_extras_get_membership_dates_from_inputs_by_
         $day = $field['day'] ?? 0;
         $month = $field['month'] ?? 0;
         $year = $field['year'] ?? 0;
+        // if "Date" field input type is used, then the date parts are split
+        // into an array of "day", "month" and "year".
         if ($day && $month && $year) {
          $date = intval($year) . "-" . intval($month) . "-" . intval($day);
+        }
+        // But if the input type is "Hidden", then the date will be a string,
+        // and it should have "Y-m-d" format.
+        elseif (!empty($field)) {
+          $date = $field;
         }
       }
     }
@@ -921,10 +931,19 @@ function _webform_civicrm_membership_extras_merge_membership_dates_by_membership
  */
 function _webform_civicrm_membership_extras_get_membership_dates(&$form, &$form_state, $membershipTypes, $membershipNamesAndKeysMap) {
   $membership_dates_added = [
-    'start_date' => _webform_civicrm_membership_extras_get_membership_dates_from_inputs_by_name($form, $form_state, 'start_date'),
-    'end_date' => _webform_civicrm_membership_extras_get_membership_dates_from_inputs_by_name($form, $form_state, 'end_date'),
-    'join_date' => _webform_civicrm_membership_extras_get_membership_dates_from_inputs_by_name($form, $form_state, 'join_date'),
+    'start_date' => _webform_civicrm_membership_extras_get_membership_dates_from_form_by_name($form, $form_state, 'start_date'),
+    'end_date' => _webform_civicrm_membership_extras_get_membership_dates_from_form_by_name($form, $form_state, 'end_date'),
+    'join_date' => _webform_civicrm_membership_extras_get_membership_dates_from_form_by_name($form, $form_state, 'join_date'),
   ];
+
+  // if the value is not present within the submitted form input, try to see
+  // if it has a default value and use it. This is needed when the date
+  // input is marked as "private" or "hidden" field with a default value.
+  foreach ($membership_dates_added as $membershipDateKey => $membershipDateValue) {
+    if (empty($membershipDateValue)) {
+      $membership_dates_added[$membershipDateKey] = _webform_civicrm_membership_extras_get_membership_dates_from_form_by_name($form, $form_state, $membershipDateKey, 'values');
+    }
+  }
 
   $membership_dates_added =
     _webform_civicrm_membership_extras_merge_membership_dates_by_membership_form_key($membership_dates_added, $membershipNamesAndKeysMap);
