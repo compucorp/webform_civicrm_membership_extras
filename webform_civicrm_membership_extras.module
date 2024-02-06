@@ -809,7 +809,9 @@ function _webform_civicrm_membership_extras_get_membership_types(&$form, &$form_
       if (empty($membership_type_id)) {
         continue;
       }
-      $membership_type_added[$key] = CRM_Member_BAO_MembershipType::findById($membership_type_id);
+      $membership_type_added[$key]['type_data'] = CRM_Member_BAO_MembershipType::findById($membership_type_id);
+      $numbers_in_form_key = array_filter(preg_split('/\D+/', $component['form_key']));
+      $membership_type_added[$key]['contact_number'] = reset($numbers_in_form_key);
     }
   }
 
@@ -956,9 +958,25 @@ function _webform_civicrm_membership_extras_get_membership_dates(&$form, &$form_
       }
     }
 
+    // If the contact already have an active fixed membership of the selected
+    // membership type, then the pro-rata should not apply and the full term fee
+    // should be used, here we ensure that by calculating the amount using the new membership
+    // term start date, which should guarantee that the full membership fee will be used.
+    $existingMembership = NULL;
+    if (empty($dates)) {
+      $membershipContactNumber = $membershipType['contact_number'];
+      $membershipContactId = _webform_civicrm_membership_extras_search_for_contact_by_number($membershipContactNumber, $form, $form_state);
+      $existingMembership = _webform_civicrm_membership_extras_get_existing_active_membership($membershipContactId, $membershipType['type_data']->id);
+    }
+    if (!empty($existingMembership)) {
+      $newStartDate = new DateTime($existingMembership['end_date']);
+      $newStartDate->modify('+1 day');
+      $dates['start_date'] = $newStartDate;
+    }
+
     $membershipTypeDatesCalculator = new CRM_MembershipExtras_Service_MembershipTypeDatesCalculator();
     $membership_dates_added[$key] = $membershipTypeDatesCalculator->getDatesForMembershipType(
-      $membershipType->id,
+      $membershipType['type_data']->id,
       $dates['start_date'],
       $dates['end_date'],
       $dates['join_date']
@@ -973,6 +991,40 @@ function _webform_civicrm_membership_extras_get_membership_dates(&$form, &$form_
   return $membership_dates_added;
 }
 
+function _webform_civicrm_membership_extras_search_for_contact_by_number($contactNumber, $form, $form_state) {
+  $existingContactId = $form_state['input']['submitted']["civicrm_{$contactNumber}_contact_1_fieldset_fieldset"]["civicrm_{$contactNumber}_contact_1_contact_existing"];
+  if (!empty($existingContactId)) {
+    return $existingContactId;
+  }
+
+  $existingContactEmail = $form_state['input']['submitted']["civicrm_{$contactNumber}_contact_1_fieldset_fieldset"]["civicrm_{$contactNumber}_contact_1_email_email"];
+  if (!empty($existingContactEmail)) {
+    $email = \Civi\Api4\Email::get(FALSE)
+      ->addSelect('contact_id')
+      ->addWhere('email', '=', $existingContactEmail)
+      ->setLimit(1)
+      ->execute()
+      ->first();
+
+    if (!empty($email['contact_id'])) {
+      return $email['contact_id'];
+    }
+  }
+
+  return NULL;
+}
+
+function _webform_civicrm_membership_extras_get_existing_active_membership($membershipContactId, $membershipTypeId) {
+  return \Civi\Api4\Membership::get(FALSE)
+    ->addWhere('contact_id', '=', $membershipContactId)
+    ->addWhere('membership_type_id', '=', $membershipTypeId)
+    ->addWhere('status_id.is_current_member', '=', TRUE)
+    ->addOrderBy('id', 'DESC')
+    ->setLimit(1)
+    ->execute()
+    ->first();
+}
+
 /**
  * Checks if the membership types are fixed.
  *
@@ -981,7 +1033,7 @@ function _webform_civicrm_membership_extras_get_membership_dates(&$form, &$form_
 function _webform_civicrm_membership_extras_are_membership_types_fixed(array $membershipTypes) {
   $areMembershipTypesFixed = TRUE;
   foreach($membershipTypes as $membershipType) {
-    if($membershipType->period_type !== 'fixed') {
+    if($membershipType['type_data']->period_type !== 'fixed') {
       $areMembershipTypesFixed = FALSE;
       break;
     }
@@ -1018,7 +1070,7 @@ function _webform_civicrm_membership_extras_update_the_prorated_membership_items
   // adjust the lineitems
   $instalmentCount = 1;
   foreach ($membershipTypes as $key => $membershipType) {
-    $instalmentAmountCalculator = _webform_civicrm_membership_extras_get_instalment_amount_calculator($membershipTypes[$key], $membershipDates[$key]);
+    $instalmentAmountCalculator = _webform_civicrm_membership_extras_get_instalment_amount_calculator($membershipTypes[$key]['type_data'], $membershipDates[$key]);
     $instalmentAmount = $instalmentAmountCalculator->calculateInstalmentAmount($instalmentCount);
     $instalmentLineItems = $instalmentAmount->getLineItems();
 
@@ -1030,7 +1082,7 @@ function _webform_civicrm_membership_extras_update_the_prorated_membership_items
         $line_items[$line_item_key]['line_total'] = (float) number_format( $line_items[$line_item_key]['line_total'], 2, '.', '');
         $line_items[$line_item_key]['tax_amount'] = $instalmentLineItems[0]->getTaxAmount();
         $line_items[$line_item_key]['tax_amount'] = (float) number_format( $line_items[$line_item_key]['tax_amount'], 2, '.', '');
-        $line_items[$line_item_key]['membership_type_id'] = $membershipTypes[$key]->id;
+        $line_items[$line_item_key]['membership_type_id'] = $membershipTypes[$key]['type_id']->id;
 
         $prorated_start_date = DateTime::createFromFormat('Ymd', $membershipDates[$key]['start_date']);
         $line_items[$line_item_key]['prorated_start_date'] = $prorated_start_date->format('Y-m-d');
