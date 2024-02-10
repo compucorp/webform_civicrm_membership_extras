@@ -1082,7 +1082,7 @@ function _webform_civicrm_membership_extras_update_the_prorated_membership_items
         $line_items[$line_item_key]['line_total'] = (float) number_format( $line_items[$line_item_key]['line_total'], 2, '.', '');
         $line_items[$line_item_key]['tax_amount'] = $instalmentLineItems[0]->getTaxAmount();
         $line_items[$line_item_key]['tax_amount'] = (float) number_format( $line_items[$line_item_key]['tax_amount'], 2, '.', '');
-        $line_items[$line_item_key]['membership_type_id'] = $membershipTypes[$key]['type_id']->id;
+        $line_items[$line_item_key]['membership_type_id'] = $membershipTypes[$key]['type_data']->id;
 
         $prorated_start_date = DateTime::createFromFormat('Ymd', $membershipDates[$key]['start_date']);
         $line_items[$line_item_key]['prorated_start_date'] = $prorated_start_date->format('Y-m-d');
