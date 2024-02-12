@@ -73,58 +73,6 @@ function webform_civicrm_membership_extras_form_alter(&$form, &$form_state, $for
 }
 
 /**
- * Sets the number of terms to 1 for memberships with manually entered dates.
- *
- * First, get the list of manually entered dates memberships. The function
- * _webform_civicrm_membership_extras_get_membership_dates_from_inputs_by_name
- * returns a list of the submitted start dates if there is any
- *   [ 'civicrm_1_membership_1' => '2021-9-8',
- *     'civicrm_1_membership_2' => '2021-9-8' ]
- * Then we convert it to an array of membership numbers
- *   [ "1" , "2" ]
- *
- * Second, Loop over the membership data stored in webform_civicrm and sets the
- * num_terms to "1" if the membership has a manually entered dates.
- *
- * $form['#node']->webform_civicrm['data']['membership']
- * [
- *   "1" => [
- *     "number_of_membership" => "3"
- *     "membership" => [
- *       ['status_id' => '1', 'num_terms' => 0, 'auto_renew' => '1'],
- *       ['status_id' => '1', 'num_terms' => 0, 'auto_renew' => '1'],
- *       ['status_id' => '1', 'num_terms' => "1", 'auto_renew' => '1'],
- *     ],
- *   ],
- *   "2" => [ "number_of_membership" => "0" ]
- * ]
- *
- * The above sample data for a form that has three memberships configured and
- * two of them has the option manually entered dates for number of terms.
- *
- * @param $form
- * @param $form_state
- */
-function _webform_civicrm_membership_extras_set_number_of_terms_for_manually_entered_dates_memberships($form, $form_state): void {
-  $membership_start_dates = _webform_civicrm_membership_extras_get_membership_dates_from_inputs_by_name($form, $form_state, 'start_date');
-  $memberships_with_manually_entered_dates = array_map(function ($item) {
-    $parts = explode('_membership_', $item);
-    return array_pop($parts);
-  }, array_keys($membership_start_dates));
-
-  $membership_sets = &$form['#node']->webform_civicrm['data']['membership'];
-  foreach ($membership_sets as $memberships_key => $membership_set) {
-    if (intval($membership_set['number_of_membership']) > 0) {
-      foreach ($membership_set['membership'] as $membership_number => $membership) {
-        if (in_array($membership_number, $memberships_with_manually_entered_dates)) {
-          $membership_sets[$memberships_key]['membership'][$membership_number]['num_terms'] = "1";
-        }
-      }
-    }
-  }
-}
-
-/**
  * The function that alters the `wf_crm_configure_form` admin form.
  *
  * @param array $form
@@ -766,8 +714,6 @@ function _webform_civicrm_membership_extras_prorated_billing_form_alter_handler(
     return;
   }
 
-  _webform_civicrm_membership_extras_set_number_of_terms_for_manually_entered_dates_memberships($form, $form_state);
-
   $form['#validate'][] = '_webform_civicrm_membership_extras_update_the_prorated_membership_items';
   $form['#validate'][] = '_webform_civicrm_membership_extras_set_prorated_membership_items_in_session';
 
@@ -863,7 +809,9 @@ function _webform_civicrm_membership_extras_get_membership_types(&$form, &$form_
       if (empty($membership_type_id)) {
         continue;
       }
-      $membership_type_added[$key] = CRM_Member_BAO_MembershipType::findById($membership_type_id);
+      $membership_type_added[$key]['type_data'] = CRM_Member_BAO_MembershipType::findById($membership_type_id);
+      $numbers_in_form_key = array_filter(preg_split('/\D+/', $component['form_key']));
+      $membership_type_added[$key]['contact_number'] = reset($numbers_in_form_key);
     }
   }
 
@@ -900,9 +848,12 @@ function _webform_civicrm_membership_extras_get_membership_types(&$form, &$form_
  * @param array $form
  * @param array $form_state
  * @param string $date_name
+ * @param string $form_data_key
+ *  Either 'input' to check if the date exists within the submitted form values,
+ *  or 'values' to check if the date exists within the form default values.
  */
-function _webform_civicrm_membership_extras_get_membership_dates_from_inputs_by_name(&$form, &$form_state, $date_name) {
-  if (!$form_state['input'] || empty($form_state['input']['submitted'])) {
+function _webform_civicrm_membership_extras_get_membership_dates_from_form_by_name(&$form, &$form_state, $date_name, $form_data_key = 'input') {
+  if (!$form_state[$form_data_key] || empty($form_state[$form_data_key]['submitted'])) {
     return [];
   }
 
@@ -910,7 +861,7 @@ function _webform_civicrm_membership_extras_get_membership_dates_from_inputs_by_
   $part_of_form_key = "_membership_$date_name";
   $components = _webform_civicrm_membership_extras_get_components_by_part_of_form_key($form, $part_of_form_key);
   $submittedInputsIterator = new RecursiveIteratorIterator(
-    new RecursiveArrayIterator($form_state['input']['submitted']),
+    new RecursiveArrayIterator($form_state[$form_data_key]['submitted']),
     RecursiveIteratorIterator::SELF_FIRST);
   foreach ($components as $key => $component) {
     $date = 0;
@@ -919,8 +870,15 @@ function _webform_civicrm_membership_extras_get_membership_dates_from_inputs_by_
         $day = $field['day'] ?? 0;
         $month = $field['month'] ?? 0;
         $year = $field['year'] ?? 0;
+        // if "Date" field input type is used, then the date parts are split
+        // into an array of "day", "month" and "year".
         if ($day && $month && $year) {
          $date = intval($year) . "-" . intval($month) . "-" . intval($day);
+        }
+        // But if the input type is "Hidden", then the date will be a string,
+        // and it should have "Y-m-d" format.
+        elseif (!empty($field)) {
+          $date = $field;
         }
       }
     }
@@ -975,10 +933,19 @@ function _webform_civicrm_membership_extras_merge_membership_dates_by_membership
  */
 function _webform_civicrm_membership_extras_get_membership_dates(&$form, &$form_state, $membershipTypes, $membershipNamesAndKeysMap) {
   $membership_dates_added = [
-    'start_date' => _webform_civicrm_membership_extras_get_membership_dates_from_inputs_by_name($form, $form_state, 'start_date'),
-    'end_date' => _webform_civicrm_membership_extras_get_membership_dates_from_inputs_by_name($form, $form_state, 'end_date'),
-    'join_date' => _webform_civicrm_membership_extras_get_membership_dates_from_inputs_by_name($form, $form_state, 'join_date'),
+    'start_date' => _webform_civicrm_membership_extras_get_membership_dates_from_form_by_name($form, $form_state, 'start_date'),
+    'end_date' => _webform_civicrm_membership_extras_get_membership_dates_from_form_by_name($form, $form_state, 'end_date'),
+    'join_date' => _webform_civicrm_membership_extras_get_membership_dates_from_form_by_name($form, $form_state, 'join_date'),
   ];
+
+  // if the value is not present within the submitted form input, try to see
+  // if it has a default value and use it. This is needed when the date
+  // input is marked as "private" or "hidden" field with a default value.
+  foreach ($membership_dates_added as $membershipDateKey => $membershipDateValue) {
+    if (empty($membershipDateValue)) {
+      $membership_dates_added[$membershipDateKey] = _webform_civicrm_membership_extras_get_membership_dates_from_form_by_name($form, $form_state, $membershipDateKey, 'values');
+    }
+  }
 
   $membership_dates_added =
     _webform_civicrm_membership_extras_merge_membership_dates_by_membership_form_key($membership_dates_added, $membershipNamesAndKeysMap);
@@ -991,9 +958,25 @@ function _webform_civicrm_membership_extras_get_membership_dates(&$form, &$form_
       }
     }
 
+    // If the contact already have an active fixed membership of the selected
+    // membership type, then the pro-rata should not apply and the full term fee
+    // should be used, here we ensure that by calculating the amount using the new membership
+    // term start date, which should guarantee that the full membership fee will be used.
+    $existingMembership = NULL;
+    if (empty($dates)) {
+      $membershipContactNumber = $membershipType['contact_number'];
+      $membershipContactId = _webform_civicrm_membership_extras_search_for_contact_by_number($membershipContactNumber, $form, $form_state);
+      $existingMembership = _webform_civicrm_membership_extras_get_existing_active_membership($membershipContactId, $membershipType['type_data']->id);
+    }
+    if (!empty($existingMembership)) {
+      $newStartDate = new DateTime($existingMembership['end_date']);
+      $newStartDate->modify('+1 day');
+      $dates['start_date'] = $newStartDate;
+    }
+
     $membershipTypeDatesCalculator = new CRM_MembershipExtras_Service_MembershipTypeDatesCalculator();
     $membership_dates_added[$key] = $membershipTypeDatesCalculator->getDatesForMembershipType(
-      $membershipType->id,
+      $membershipType['type_data']->id,
       $dates['start_date'],
       $dates['end_date'],
       $dates['join_date']
@@ -1008,6 +991,40 @@ function _webform_civicrm_membership_extras_get_membership_dates(&$form, &$form_
   return $membership_dates_added;
 }
 
+function _webform_civicrm_membership_extras_search_for_contact_by_number($contactNumber, $form, $form_state) {
+  $existingContactId = $form_state['input']['submitted']["civicrm_{$contactNumber}_contact_1_fieldset_fieldset"]["civicrm_{$contactNumber}_contact_1_contact_existing"];
+  if (!empty($existingContactId)) {
+    return $existingContactId;
+  }
+
+  $existingContactEmail = $form_state['input']['submitted']["civicrm_{$contactNumber}_contact_1_fieldset_fieldset"]["civicrm_{$contactNumber}_contact_1_email_email"];
+  if (!empty($existingContactEmail)) {
+    $email = \Civi\Api4\Email::get(FALSE)
+      ->addSelect('contact_id')
+      ->addWhere('email', '=', $existingContactEmail)
+      ->setLimit(1)
+      ->execute()
+      ->first();
+
+    if (!empty($email['contact_id'])) {
+      return $email['contact_id'];
+    }
+  }
+
+  return NULL;
+}
+
+function _webform_civicrm_membership_extras_get_existing_active_membership($membershipContactId, $membershipTypeId) {
+  return \Civi\Api4\Membership::get(FALSE)
+    ->addWhere('contact_id', '=', $membershipContactId)
+    ->addWhere('membership_type_id', '=', $membershipTypeId)
+    ->addWhere('status_id.is_current_member', '=', TRUE)
+    ->addOrderBy('id', 'DESC')
+    ->setLimit(1)
+    ->execute()
+    ->first();
+}
+
 /**
  * Checks if the membership types are fixed.
  *
@@ -1016,7 +1033,7 @@ function _webform_civicrm_membership_extras_get_membership_dates(&$form, &$form_
 function _webform_civicrm_membership_extras_are_membership_types_fixed(array $membershipTypes) {
   $areMembershipTypesFixed = TRUE;
   foreach($membershipTypes as $membershipType) {
-    if($membershipType->period_type !== 'fixed') {
+    if($membershipType['type_data']->period_type !== 'fixed') {
       $areMembershipTypesFixed = FALSE;
       break;
     }
@@ -1053,7 +1070,7 @@ function _webform_civicrm_membership_extras_update_the_prorated_membership_items
   // adjust the lineitems
   $instalmentCount = 1;
   foreach ($membershipTypes as $key => $membershipType) {
-    $instalmentAmountCalculator = _webform_civicrm_membership_extras_get_instalment_amount_calculator($membershipTypes[$key], $membershipDates[$key]);
+    $instalmentAmountCalculator = _webform_civicrm_membership_extras_get_instalment_amount_calculator($membershipTypes[$key]['type_data'], $membershipDates[$key]);
     $instalmentAmount = $instalmentAmountCalculator->calculateInstalmentAmount($instalmentCount);
     $instalmentLineItems = $instalmentAmount->getLineItems();
 
@@ -1065,7 +1082,7 @@ function _webform_civicrm_membership_extras_update_the_prorated_membership_items
         $line_items[$line_item_key]['line_total'] = (float) number_format( $line_items[$line_item_key]['line_total'], 2, '.', '');
         $line_items[$line_item_key]['tax_amount'] = $instalmentLineItems[0]->getTaxAmount();
         $line_items[$line_item_key]['tax_amount'] = (float) number_format( $line_items[$line_item_key]['tax_amount'], 2, '.', '');
-        $line_items[$line_item_key]['membership_type_id'] = $membershipTypes[$key]->id;
+        $line_items[$line_item_key]['membership_type_id'] = $membershipTypes[$key]['type_data']->id;
 
         $prorated_start_date = DateTime::createFromFormat('Ymd', $membershipDates[$key]['start_date']);
         $line_items[$line_item_key]['prorated_start_date'] = $prorated_start_date->format('Y-m-d');
