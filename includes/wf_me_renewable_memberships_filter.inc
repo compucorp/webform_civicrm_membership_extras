@@ -8,6 +8,8 @@
  */
 class wf_me_renewable_memberships_filter {
 
+  // These mirror CRM_MembershipExtras_SettingsManager::WEBFORM_MODE_*; kept
+  // separate so this class stays pure and unit-testable.
   const MODE_RENEW = 'renew';
   const MODE_NEW_IF_NOT_CURRENT = 'new_if_not_current';
   const MODE_NEW_IF_NOT_CURRENT_AND_ENDED = 'new_if_not_current_and_ended';
@@ -28,6 +30,8 @@ class wf_me_renewable_memberships_filter {
    *   Today's date, Y-m-d.
    *
    * @return array
+   *   The memberships that may still be renewed, with their original keys and
+   *   order.
    */
   public function filter(array $memberships, $mode, array $currentStatusIds, array $pendingStatusIds, $today) {
     if ($mode !== self::MODE_NEW_IF_NOT_CURRENT && $mode !== self::MODE_NEW_IF_NOT_CURRENT_AND_ENDED) {

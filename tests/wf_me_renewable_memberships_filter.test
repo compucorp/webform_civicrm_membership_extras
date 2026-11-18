@@ -88,4 +88,15 @@ class WfMeRenewableMembershipsFilterTestCase extends DrupalUnitTestCase {
     $this->assertIdentical(12, $result[2]['id']);
   }
 
+  public function testStatusIdsPassedAsStringsBehaveLikeIntegers() {
+    $filter = new wf_me_renewable_memberships_filter();
+    $memberships = [
+      0 => ['id' => 10, 'status_id' => '2', 'end_date' => '2027-01-01'],
+      1 => ['id' => 11, 'status_id' => '14', 'end_date' => '2023-01-01'],
+    ];
+    $result = $filter->filter($memberships, 'new_if_not_current', ['1', '2', '3'], ['5'], self::TODAY);
+    $this->assertIdentical([0], array_keys($result), 'string status IDs: Current kept, ended Lapsed removed');
+    $this->assertIdentical(10, $result[0]['id']);
+  }
+
 }
