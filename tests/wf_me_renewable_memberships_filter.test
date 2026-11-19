@@ -1,0 +1,102 @@
+<?php
+
+/**
+ * Unit tests for wf_me_renewable_memberships_filter (MRJ-002.2).
+ *
+ * Status IDs used: 1 New, 2 Current, 3 Grace (current); 4 Expired, 14 Lapsed
+ * (not current); 5 Pending. Today is fixed at 2026-11-17.
+ */
+class WfMeRenewableMembershipsFilterTestCase extends DrupalUnitTestCase {
+
+  const TODAY = '2026-11-17';
+
+  private $current = [1, 2, 3];
+  private $pending = [5];
+
+  public static function getInfo() {
+    return [
+      'name' => 'Renewable memberships filter',
+      'description' => 'Which existing memberships a webform may renew, per the re-join setting.',
+      'group' => 'Webform CiviCRM Membership Extras',
+    ];
+  }
+
+  public function setUp() {
+    require_once dirname(__FILE__) . '/../includes/wf_me_renewable_memberships_filter.inc';
+    parent::setUp();
+  }
+
+  private function keeps($mode, $statusId, $endDate) {
+    $membership = ['id' => 99, 'status_id' => (string) $statusId];
+    if ($endDate !== NULL) {
+      $membership['end_date'] = $endDate;
+    }
+    $result = (new wf_me_renewable_memberships_filter())
+      ->filter([$membership], $mode, $this->current, $this->pending, self::TODAY);
+    return count($result) === 1;
+  }
+
+  public function testRenewModeKeepsEverything() {
+    foreach ([[14, '2016-01-01'], [4, '2026-11-16'], [2, '2027-01-01'], [5, '']] as list($status, $end)) {
+      $this->assertTrue($this->keeps('renew', $status, $end), "renew keeps status $status / $end");
+    }
+  }
+
+  public function testUnknownModeKeepsEverything() {
+    $this->assertTrue($this->keeps('bogus', 14, '2016-01-01'), 'unknown mode behaves like renew');
+  }
+
+  public function testNotCurrentModeRemovesEveryNotCurrentStatus() {
+    $cases = [
+      [14, '2026-11-16', FALSE], [14, '2026-11-17', FALSE], [14, '2026-11-18', FALSE], [14, '', FALSE], [14, NULL, FALSE],
+      [4, '2023-02-28', FALSE],
+      [2, '2026-11-16', TRUE], [3, '2026-11-07', TRUE], [1, '2027-11-16', TRUE],
+      [5, '2027-11-16', TRUE], [5, '2026-01-01', TRUE],
+    ];
+    foreach ($cases as list($status, $end, $keep)) {
+      $this->assertIdentical($keep, $this->keeps('new_if_not_current', $status, $end), "new_if_not_current: status $status, end " . var_export($end, TRUE));
+    }
+  }
+
+  public function testNotCurrentAndEndedModeOnlyRemovesEndedNotCurrent() {
+    $cases = [
+      // Boundary at today: yesterday removed, today and tomorrow kept.
+      [14, '2026-11-16', FALSE], [14, '2026-11-17', TRUE], [14, '2026-11-18', TRUE],
+      // Lifetime (no end date) never counts as ended.
+      [14, '', TRUE], [14, NULL, TRUE],
+      // A datetime string still compares by date.
+      [14, '2026-11-16 00:00:00', FALSE], [14, '2026-11-17 00:00:00', TRUE],
+      [4, '2023-02-28', FALSE],
+      // Current and Pending are never removed.
+      [2, '2026-11-16', TRUE], [3, '2026-11-07', TRUE], [5, '2026-01-01', TRUE],
+    ];
+    foreach ($cases as list($status, $end, $keep)) {
+      $this->assertIdentical($keep, $this->keeps('new_if_not_current_and_ended', $status, $end), "new_if_not_current_and_ended: status $status, end " . var_export($end, TRUE));
+    }
+  }
+
+  public function testOrderAndKeysOfKeptMembershipsArePreserved() {
+    $memberships = [
+      0 => ['id' => 10, 'status_id' => '2', 'end_date' => '2027-01-01'],
+      1 => ['id' => 11, 'status_id' => '14', 'end_date' => '2023-01-01'],
+      2 => ['id' => 12, 'status_id' => '5', 'end_date' => '2027-06-01'],
+    ];
+    $result = (new wf_me_renewable_memberships_filter())
+      ->filter($memberships, 'new_if_not_current_and_ended', $this->current, $this->pending, self::TODAY);
+    $this->assertIdentical([0, 2], array_keys($result), 'ended Lapsed removed, others kept in order');
+    $this->assertIdentical(10, $result[0]['id']);
+    $this->assertIdentical(12, $result[2]['id']);
+  }
+
+  public function testStatusIdsPassedAsStringsBehaveLikeIntegers() {
+    $filter = new wf_me_renewable_memberships_filter();
+    $memberships = [
+      0 => ['id' => 10, 'status_id' => '2', 'end_date' => '2027-01-01'],
+      1 => ['id' => 11, 'status_id' => '14', 'end_date' => '2023-01-01'],
+    ];
+    $result = $filter->filter($memberships, 'new_if_not_current', ['1', '2', '3'], ['5'], self::TODAY);
+    $this->assertIdentical([0], array_keys($result), 'string status IDs: Current kept, ended Lapsed removed');
+    $this->assertIdentical(10, $result[0]['id']);
+  }
+
+}

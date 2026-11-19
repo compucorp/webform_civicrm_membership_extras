@@ -56,6 +56,47 @@ function webform_civicrm_membership_extras_civicrm_apiWrappers(&$wrappers, $apiR
 
 }
 
+/**
+ * Implements hook_webform_civicrm_renewable_memberships_alter().
+ *
+ * Applies Membership Extras' 'Re-joining through a webform' setting: removes
+ * memberships that must not be renewed so the webform creates a new one.
+ */
+function webform_civicrm_membership_extras_webform_civicrm_renewable_memberships_alter(array &$memberships, $cid, $node) {
+  if (empty($memberships)) {
+    return;
+  }
+
+  civicrm_initialize();
+  // Fail safe if an older Membership Extras without the setting is installed.
+  if (!method_exists('CRM_MembershipExtras_SettingsManager', 'getWebformExistingMembershipMode')) {
+    return;
+  }
+
+  $mode = CRM_MembershipExtras_SettingsManager::getWebformExistingMembershipMode();
+  if ($mode === CRM_MembershipExtras_SettingsManager::WEBFORM_MODE_RENEW) {
+    return;
+  }
+
+  $currentStatusIds = $pendingStatusIds = [];
+  $statuses = \Civi\Api4\MembershipStatus::get(FALSE)
+    ->addSelect('id', 'name', 'is_current_member')
+    ->execute();
+  foreach ($statuses as $status) {
+    if (!empty($status['is_current_member'])) {
+      $currentStatusIds[] = (int) $status['id'];
+    }
+    if ($status['name'] === 'Pending') {
+      $pendingStatusIds[] = (int) $status['id'];
+    }
+  }
+
+  // Load explicitly so a not-yet-rebuilt registry after deploy can't fatal.
+  module_load_include('inc', 'webform_civicrm_membership_extras', 'includes/wf_me_renewable_memberships_filter');
+  $memberships = (new wf_me_renewable_memberships_filter())
+    ->filter($memberships, $mode, $currentStatusIds, $pendingStatusIds, CRM_Utils_Time::date('Y-m-d'));
+}
+
 
 /**
  * Implements hook_form_alter().
